@@ -1,10 +1,11 @@
 export LLVM=/usr/lib/llvm-13
-export TARGET_PROGRAM=../../target/mutex_channel_thread.rs
+export TARGET_PROGRAM=../toy_bugs/read_none.rs
 
 rm -rf build
 mkdir build
 cd build
 
+#clang -pthread -c -D STACKTRACE ../probe/probe.c -o probe.o
 clang -pthread -c ../probe/probe.c -o probe.o
 
 cmake -DLT_LLVM_INSTALL_DIR=$LLVM ../pass
