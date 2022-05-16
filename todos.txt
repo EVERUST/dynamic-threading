@@ -1,0 +1,19 @@
+TODOS:
+get partial order of threads (exe order)
+write to file (info of the target program)
+read from file (exe order)
+
+?shuffle
+?channel (complicates shuffle)
+?insert probe at end of closure main (threaded)
+
+============================
+
+CONFLICT:
+translate probe.c to probe.rs 
+	--> the name of function changes. ex: __init__ to _ZN9...__init__
+
+=============================
+
+DONE:
+semaphore at spawn and spawned

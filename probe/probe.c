@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <semaphore.h>
 
 #ifdef STACKTRACE
 	#include <execinfo.h>
@@ -11,6 +12,8 @@
 
 FILE * fp = NULL;
 pthread_mutex_t fp_lock = PTHREAD_MUTEX_INITIALIZER;
+sem_t thrd_sem;
+void* parent_thrd;
 
 extern void _final_();
 extern void 
@@ -21,6 +24,7 @@ _init_()
 	fprintf(fp, "---------------------From _init_---------------------\n");
 	fprintf(fp, "%p :     main\n", (void *) pthread_self());
 	pthread_mutex_unlock(&fp_lock);
+	sem_init(&thrd_sem, 0, 1);
 	atexit(_final_);
 }
 
@@ -31,6 +35,7 @@ _final_()
 	fprintf(fp, "---------------------From _final_---------------------\n");
 	fclose(fp);
 	pthread_mutex_unlock(&fp_lock);
+	sem_destroy(&thrd_sem);
 }
 
 extern void
@@ -85,22 +90,6 @@ _probe_mutex_(int line, int func_num, char * func, void * lock_var_addr)
 }
 
 extern void
-_probe_lock_(int line, int func_num, char * func, void * lock_var_addr)
-{
-	pthread_mutex_lock(&fp_lock);
-	fprintf(fp, "lock: %p : %8s -> line: %d | func_num: %d | lock_var_addr : %p\n", (void *) pthread_self(), func, line, func_num, lock_var_addr);
-	pthread_mutex_unlock(&fp_lock);
-}
-
-extern void
-_probe_unlock_(int line, int func_num, char * func, void * lock_var_addr)
-{
-	pthread_mutex_lock(&fp_lock);
-	fprintf(fp, "unlock: %p : %8s -> line: %d | func_num: %d | lock_var_addr : %p\n", (void *) pthread_self(), func, line, func_num, lock_var_addr);
-	pthread_mutex_unlock(&fp_lock);
-}
-
-extern void
 _probe_func_(int line, int func_num, char * func)
 {
 	pthread_mutex_lock(&fp_lock);
@@ -108,35 +97,22 @@ _probe_func_(int line, int func_num, char * func)
 	pthread_mutex_unlock(&fp_lock);
 }
 
-
 extern void
-_probe_send_(int line, int func_num, char * func)
+_probe_spawning_(int line, int func_num)
 {
-	pthread_mutex_lock(&fp_lock);
-	fprintf(fp, "send: %p : %8s -> line: %d | func_num: %d\n", (void *) pthread_self, func, line, func_num);
-	pthread_mutex_unlock(&fp_lock);
-}	
+	sem_wait(&thrd_sem);
+	parent_thrd = (void *) pthread_self();
 
-extern void
-_probe_recv_(int line, int func_num, char * func)
-{
 	pthread_mutex_lock(&fp_lock);
-	fprintf(fp, "recv: %p : %8s -> line: %d | func_num: %d\n", (void *) pthread_self, func, line, func_num);
-       	pthread_mutex_unlock(&fp_lock);
-}
-
-extern void
-_probe_thread_spawn_(int line, int func_num, char * func)
-{
-	pthread_mutex_lock(&fp_lock);
-	fprintf(fp, "spawn: %p : %8s -> line: %d | func_num: %d\n", (void *) pthread_self, func, line, func_num);
+	fprintf(fp, "%p : spawning -> line: %d | func_num: %d |\n", (void *) pthread_self(), line, func_num);
 	pthread_mutex_unlock(&fp_lock);
 }
 
 extern void
-_probe_thread_join_(int line, int func_num, char * func)
+_probe_spawned_(int line, int func_num)
 {
 	pthread_mutex_lock(&fp_lock);
-	fprintf(fp, "join: %p : %8s -> line: %d | func_num: %d\n", (void *) pthread_self, func, line, func_num);
+	fprintf(fp, "%p :  main_cl -> line: %d | func_num: %d | %p spawned %p\n", (void *) pthread_self(), line, func_num, parent_thrd, (void *) pthread_self());
 	pthread_mutex_unlock(&fp_lock);
+	sem_post(&thrd_sem);
 }

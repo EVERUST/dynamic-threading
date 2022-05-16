@@ -1,4 +1,3 @@
-
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
@@ -8,6 +7,7 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/AsmParser/LLToken.h"
+#include "llvm/ADT/ilist_node.h"
 
 //#include "llvm/Support/raw_ostream.h"
 
@@ -28,6 +28,8 @@ namespace {
 		FunctionCallee p_init;
 		FunctionCallee p_probe_mutex;
 		FunctionCallee p_probe_func;
+		FunctionCallee p_probe_spawning;
+		FunctionCallee p_probe_spawned;
 
 		// Main entry point, takes IR unit to run the pass on (&F) and the
 		// corresponding pass manager (to be queried if need be)
@@ -46,6 +48,27 @@ namespace {
 
 			for(auto& B : F) {
 				for(auto& I : B) {
+					if(I.getOpcode() == Instruction::Call){
+						CallInst * cal = dyn_cast<CallInst>(&I);
+						if(cal->getCalledFunction() != NULL){ // childe thread spawned
+							string funcName = cal->getCalledFunction()->getName().str();
+							if(funcName.find("drop_in_place") == std::string::npos
+										&& funcName.find("closure") != std::string::npos 
+										&& funcName.find("main") != std::string::npos){ //main.*closure no dip
+								IRBuilder<> builder(cal);
+
+								//int loc = cal->getDebugLoc().getLine();
+								//errs() << funcName << "\n";
+
+								Value* args[] = {
+									ConstantInt::get(intTy, -1, /*loc,*/ false),
+									ConstantInt::get(intTy, func_num++, false),
+									//builder.CreateGlobalStringPtr("main_cl", "")
+								};
+								builder.CreateCall(p_probe_spawned, args);
+							}
+						}
+					}
 					if(I.getOpcode() == Instruction::Invoke) {
 						InvokeInst * inv = dyn_cast<InvokeInst>(&I);
 						if(inv->getDebugLoc().get() != NULL && inv->getCalledFunction() != NULL) {
@@ -115,11 +138,11 @@ namespace {
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("spawn", "")
+									//builder.CreateGlobalStringPtr("spawn", "")
 								};
-								builder.CreateCall(p_probe_func, args);
+								builder.CreateCall(p_probe_spawning, args);
 							} 
-							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join17hd223c567ab090f8cE") != std::string::npos){ //join
+							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join"/*17hd223c567ab090f8cE"*/) != std::string::npos){ //join
 								IRBuilder<> builder(inv);
 
 								int loc = inv->getDebugLoc().getLine();
@@ -130,6 +153,18 @@ namespace {
 									builder.CreateGlobalStringPtr("join", "")
 								};
 								builder.CreateCall(p_probe_func, args);
+								/*
+								//IRBuilder<> builder1(I.getNextNonDebugInstruction());
+								//builder.SetInsertPoint(I.getNextNonDebugInstruction());
+								builder.SetInsertPoint(&B, builder.GetInsertPoint()++);
+
+								Value* args1[] = {
+								 	ConstantInt::get(intTy, -1, false),
+									ConstantInt::get(intTy, func_num++, false),
+									builder.CreateGlobalStringPtr("aft_join", "")
+								};
+								builder.CreateCall(p_probe_func, args1);
+								*/
 							}
 						}
 					} // opcode == Instruction::Invoke 
@@ -163,6 +198,14 @@ namespace {
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			p_probe_func = F.getParent()->getOrInsertFunction("_probe_func_", fty);
+			
+			paramTypes = {intTy, intTy};		
+			fty = FunctionType::get(voidTy, paramTypes, false);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_probe_spawning_", fty);
+			
+			paramTypes = {intTy, intTy};		
+			fty = FunctionType::get(voidTy, paramTypes, false);
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_probe_spawned_", fty);
 
 			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
 			if(mainFunc != NULL) {
@@ -170,7 +213,7 @@ namespace {
 				vector<Value *> ArgsV;
 				builder.CreateCall(p_init, ArgsV, "");
 			}
-			errs() << "init!\n";
+			//errs() << "init!\n";
 		}
 	}; //Custom_pass
 
