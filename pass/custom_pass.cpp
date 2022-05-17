@@ -204,12 +204,12 @@ namespace {
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_spawning = F.getParent()->getOrInsertFunction("_probe_spawning_", fty);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN5probe15_probe_spawning17hafb6772f2ba65e52E", fty);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN5probe16_probe_spawning_17h77e1d69da6b88094E", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_spawned = F.getParent()->getOrInsertFunction("_probe_spawned_", fty);
-			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN5probe14_probe_spawned17he3c61c8542b4f42cE", fty);
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN5probe15_probe_spawned_17ha99126e232692ea3E", fty);
 
 			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
 			if(mainFunc != NULL) {

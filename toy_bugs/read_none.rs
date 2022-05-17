@@ -40,4 +40,6 @@ fn main(){
     for child in children{
         let _ = child.join();
     }
+    let mut shared = shared.lock().unwrap();
+    println!("main found {:?}", shared.data.unwrap());
 }
