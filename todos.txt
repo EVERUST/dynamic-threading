@@ -10,10 +10,10 @@ read from file (exe order)
 ============================
 
 CONFLICT:
-translate probe.c to probe.rs 
-	--> the name of function changes. ex: __init__ to _ZN9...__init__
 
 =============================
 
 DONE:
 semaphore at spawn and spawned
+translate probe.c to probe.rs 
+	--> the function name still remain unresolved

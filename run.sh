@@ -6,8 +6,9 @@ mkdir build
 cd build
 
 #clang -pthread -c -D STACKTRACE ../probe/probe.c -o probe.o
-#rustc --crate-type=lib --emit=obj ../probe/probe.rs -o probe.o
-clang -pthread -c ../probe/probe.c -o probe.o
+rustc --crate-type=lib --emit=obj ../probe/probe.rs -o probe.o
+#clang -pthread -c ../probe/probe.c -o probe.o
+#clang -pthread -c ../probe/probe.cpp -o probe.o
 
 cmake -DLT_LLVM_INSTALL_DIR=$LLVM ../pass
 make

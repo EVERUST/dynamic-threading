@@ -34,12 +34,12 @@ namespace {
 		// Main entry point, takes IR unit to run the pass on (&F) and the
 		// corresponding pass manager (to be queried if need be)
 		PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
-
 			/*
 			string FName = F.getName().str();
 			if(FName.find("core") != string::npos || FName.find("std") != string::npos) {
 				return PreservedAnalyses::all();
-			}*/
+			}
+			*/
 
 			if(!initial) {
 				initialization(F);
@@ -85,7 +85,6 @@ namespace {
 									builder.CreateGlobalStringPtr("lock", ""),
 									builder.CreateBitCast(var, ptrTy),
 								};
-
 								builder.CreateCall(p_probe_mutex, args);
 							} 
 							else if(funcName.find("_ZN4core3ptr60drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
@@ -189,23 +188,28 @@ namespace {
 			LLVMContext &Ctx = F.getContext();
 
 			FunctionType * fty = FunctionType::get(voidTy, false);
-			p_init = F.getParent()->getOrInsertFunction("_init_", fty);
+			//p_init = F.getParent()->getOrInsertFunction("_init_", fty);
+			p_init = F.getParent()->getOrInsertFunction("_ZN5probe6_init_17hfe36c3c52304281dE", fty);
 
 			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy};
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_mutex = F.getParent()->getOrInsertFunction("_probe_mutex_", fty);
+			//p_probe_mutex = F.getParent()->getOrInsertFunction("_probe_mutex_", fty);
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN5probe13_probe_mutex_17h9b989f2138541d65E", fty);
 
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_func = F.getParent()->getOrInsertFunction("_probe_func_", fty);
+			//p_probe_func = F.getParent()->getOrInsertFunction("_probe_func_", fty);
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN5probe12_probe_func_17hd56874fc8e15639eE", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_probe_spawning_", fty);
+			//p_probe_spawning = F.getParent()->getOrInsertFunction("_probe_spawning_", fty);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN5probe15_probe_spawning17hafb6772f2ba65e52E", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawned = F.getParent()->getOrInsertFunction("_probe_spawned_", fty);
+			//p_probe_spawned = F.getParent()->getOrInsertFunction("_probe_spawned_", fty);
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN5probe14_probe_spawned17he3c61c8542b4f42cE", fty);
 
 			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
 			if(mainFunc != NULL) {
@@ -213,7 +217,6 @@ namespace {
 				vector<Value *> ArgsV;
 				builder.CreateCall(p_init, ArgsV, "");
 			}
-			//errs() << "init!\n";
 		}
 	}; //Custom_pass
 
