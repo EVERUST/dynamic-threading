@@ -8,51 +8,76 @@ use std::{
     fs::File,
     io::prelude::*,
     thread,
+    time
 };
 
+static mut PROBE_MUTEX:Option<Mutex<i32>> = None;
 static mut fp:Option<Arc<Mutex<File>>> = None;
-static mut pair:Option<Arc<(Mutex<bool>,Condvar)>> = None;
-static mut pair2:Option<Arc<(Mutex<bool>,Condvar)>> = None;
+static mut PROBE_SEM:Option<Arc<_ProbeSemaphore>> = None;
 
 pub fn _init_(){
     unsafe{
-        fp = Some(Arc::new(Mutex::new(OpenOptions::new()
+        if let Some(_lock) = &PROBE_MUTEX {
+            let _guard = _lock.lock().unwrap(); 
+            fp = Some(Arc::new(Mutex::new(OpenOptions::new()
                                             .read(true)
                                             .write(true)
                                             .open("../metadata.txt")
                                             .unwrap())));
         
-        pair = Some(Arc::new((Mutex::new(false), Condvar::new())));
-        if let Some(pair_p) = &pair {
-            pair2 = Some(Arc::clone(&pair_p));
-        }
-
-
-        if let Some(fp_arc) = &fp{
-            let mut line = String::new();
-            fp_arc.lock().unwrap().read_to_string(&mut line).expect("with text");
-            println!("with text: {}\n", line);
+            PROBE_SEM = Some(Arc::new(_ProbeSemaphore::new(1)));
+            if let Some(fp_arc) = &fp{
+                let mut line = String::new();
+                fp_arc.lock().unwrap().read_to_string(&mut line).expect("with text");
+                println!("with text: {}\n", line);
+            }
         }
     }
-    println!("program termination\n");
 }
+
 pub fn _probe_mutex_(line:i32, func_num:i32, func_name:&str, lock_var_addr:*mut u64){
     unsafe {
-            if line == 15 {
-                if let Some(pair2_p) = &pair2 {
-                    let (lock, cvar) = &**pair2_p;
-                    let mut started = lock.lock().unwrap();
-                    *started = true;
-                    cvar.notify_one();
+        if let Some(_lock) = &PROBE_MUTEX {
+            let _guard = _lock.lock().unwrap();
+            if line == 20 {
+                if let Some(probe_sem) = &PROBE_SEM{
+                    probe_sem.inc();
                 }
-            } else if line == 20 {
-               if let Some(pair_p) = &pair {
-                    let (lock, cvar) = &**pair_p;
-                    let mut started = lock.lock().unwrap();
-                    while !*started {
-                        started = cvar.wait(started).unwrap();
-                    }
+            } else if line == 15 {
+                if let Some(probe_sem) = &PROBE_SEM{
+                    probe_sem.dec();
                 }
             }
+        }
     }
 }
+
+struct _ProbeSemaphore {
+    mutex: Mutex<i32>,
+    cvar: Condvar,
+}
+
+impl _ProbeSemaphore {
+    fn new(count: i32) -> Self {
+        _ProbeSemaphore {
+            mutex: Mutex::new(count),
+            cvar: Condvar::new(),
+        }
+    }
+    fn dec(&self) {
+        let mut lock = self.mutex.lock().unwrap();
+        *lock -= 1;
+        while *lock < 0 {
+            lock = self.cvar.wait(lock).unwrap();
+        }
+    }
+    fn inc(&self) {
+        let mut lock = self.mutex.lock().unwrap();
+        *lock += 1;
+        if *lock <= 0 {
+            self.cvar.notify_one();
+        }
+    }
+}
+unsafe impl Send for _ProbeSemaphore {}
+unsafe impl Sync for _ProbeSemaphore {}
