@@ -11,42 +11,36 @@ use std::{
     time
 };
 
-static mut PROBE_MUTEX:Option<Mutex<i32>> = None;
 static mut fp:Option<Arc<Mutex<File>>> = None;
 static mut PROBE_SEM:Option<Arc<_ProbeSemaphore>> = None;
 
 pub fn _init_(){
     unsafe{
-        if let Some(_lock) = &PROBE_MUTEX {
-            let _guard = _lock.lock().unwrap(); 
-            fp = Some(Arc::new(Mutex::new(OpenOptions::new()
-                                            .read(true)
-                                            .write(true)
-                                            .open("../metadata.txt")
-                                            .unwrap())));
-        
-            PROBE_SEM = Some(Arc::new(_ProbeSemaphore::new(1)));
-            if let Some(fp_arc) = &fp{
-                let mut line = String::new();
-                fp_arc.lock().unwrap().read_to_string(&mut line).expect("with text");
-                println!("with text: {}\n", line);
-            }
-        }
+        fp = Some(Arc::new(Mutex::new(OpenOptions::new()
+                                        .read(true)
+                                        .write(true)
+                                        .open("../metadata.txt")
+                                        .unwrap())));
+    
+        PROBE_SEM = Some(Arc::new(_ProbeSemaphore::new(1)));
+        /*
+        if let Some(fp_arc) = &fp{
+            let mut line = String::new();
+            fp_arc.lock().unwrap().read_to_string(&mut line).expect("with text");
+            println!("with text: {}\n", line);
+        }*/
     }
 }
 
 pub fn _probe_mutex_(line:i32, func_num:i32, func_name:&str, lock_var_addr:*mut u64){
     unsafe {
-        if let Some(_lock) = &PROBE_MUTEX {
-            let _guard = _lock.lock().unwrap();
-            if line == 20 {
-                if let Some(probe_sem) = &PROBE_SEM{
-                    probe_sem.inc();
-                }
-            } else if line == 15 {
-                if let Some(probe_sem) = &PROBE_SEM{
-                    probe_sem.dec();
-                }
+        if line == 20 {
+            if let Some(probe_sem) = &PROBE_SEM{
+                probe_sem.inc();
+            }
+        } else if line == 15 {
+            if let Some(probe_sem) = &PROBE_SEM{
+                probe_sem.dec();
             }
         }
     }
