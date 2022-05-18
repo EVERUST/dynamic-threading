@@ -1,11 +1,11 @@
 TODOS:
-get partial order of threads (exe order)
-write to file (info of the target program)
 read from file (exe order)
+get partial order of threads (exe order)
+shuffle
 
-?shuffle
-?channel (complicates shuffle)
-?insert probe at end of closure main (threaded)
+channel (complicates shuffle)
+
+insert probe at end of closure main (threaded)
 
 ============================
 
@@ -17,3 +17,4 @@ DONE:
 semaphore at spawn and spawned
 translate probe.c to probe.rs 
 	--> the function name still remain unresolved
+write to file (info of the target program)
