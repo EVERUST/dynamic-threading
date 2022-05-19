@@ -3,14 +3,16 @@ use std::{
         Arc,
         Condvar,
         Mutex,
+        RwLock,
     },
     fs::{OpenOptions, File},
     io::prelude::*,
     thread,
     ffi::CStr,
     os::raw::{c_char, c_int},
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     fmt,
+    time::Duration,
 };
 
 static mut _PROBE_FP:Option<Arc<Mutex<File>>> = None;
@@ -19,6 +21,7 @@ static mut _PROBE_PARENT_ID:Option<thread::ThreadId> = None;
 static mut _PROBE_THRD_MAP:Option<Arc<Mutex<HashMap<thread::ThreadId, i32>>>> = None;
 static mut _PROBE_THRD_CUSTOM_ID:Option<Arc<Mutex<i32>>> = None;
 static mut _PROBE_THRD_EXE:Option<Arc<Mutex<Vec<Vec<_ProbeNode>>>>> = None;
+static mut _SHUFFLED_ORDER:Option<Arc<_ShuffledOrder>> = None;
 
 extern{
     fn atexit(callback: fn()) -> c_int;
@@ -29,7 +32,6 @@ pub fn _init_(){
         _PROBE_THRD_SEM = Some(Arc::new(_ProbeSemaphore::new(1))); // allow only 1 thread
         _PROBE_THRD_MAP = Some(Arc::new(Mutex::new(HashMap::new())));
         _PROBE_THRD_CUSTOM_ID = Some(Arc::new(Mutex::new(1)));
-        _PROBE_THRD_EXE = Some(Arc::new(Mutex::new(Vec::new())));
         _PROBE_FP = Some(Arc::new(Mutex::new(OpenOptions::new()
                                             .write(true)
                                             .create(true)
@@ -43,6 +45,23 @@ pub fn _init_(){
             write!(file_stream, "ThreadId(1) :     main\n").expect("write failed\n"); 
         }
         atexit(_final_);
+    }
+    let shuffle_stream_res = OpenOptions::new().read(true).open("shuffle");
+    match shuffle_stream_res {
+        Ok(mut shuffle_stream) => {
+            println!("DEBUG read shuffle success");
+            let mut shuffle_order_str = String::new();
+            shuffle_stream.read_to_string(&mut shuffle_order_str).expect("fail to read from file\n");
+            unsafe{
+                _SHUFFLED_ORDER = Some(Arc::new(_ShuffledOrder::new(shuffle_order_str)));
+            }
+       },
+        Err(_) => {
+            println!("read shuffle fail");
+            unsafe{
+                _PROBE_THRD_EXE = Some(Arc::new(Mutex::new(Vec::new())));
+            }
+        },
     }
 }
 
@@ -84,6 +103,11 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
         }
     }
     _append_exe_node(tid, -1, line, func_num, func_name_str, Some(lock_var_addr));
+    unsafe{
+        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
+            shuffled_order.wait_or_pass(func_num);
+        }
+    }
 }
 
 pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
@@ -223,5 +247,52 @@ impl fmt::Display for _ProbeNode<'_>{
                 write!(f, "tid: {:>3}, parent_tid: {:>3}, line: {:>4}, func: {:>8}, func_num: {:>3}, var: None",
                         self.tid, self.parent_tid, self.line_num, self.func_name, self.func_num),
         }
+    }
+}
+
+struct _ShuffledOrder{
+    order:VecDeque<i32>,
+    next_exe:RwLock<i32>,
+    cvar:Condvar,
+    m:Mutex<()>,
+}
+
+impl _ShuffledOrder{
+    fn new(shuffle_order_str:String) -> Self {
+        let mut order = VecDeque::new();
+        let str_vec:Vec<&str> = shuffle_order_str.split_whitespace().collect();
+        for str_order in str_vec {
+            order.push_back(str_order.parse::<i32>().unwrap());
+        }
+        let next_exe_init = order.pop_front().unwrap();
+
+        _ShuffledOrder{
+            order:order,
+            next_exe:RwLock::new(next_exe_init),
+            cvar: Condvar::new(),
+            m: Mutex::new(()),
+        }
+    }
+
+    fn wait_or_pass(mut self, exe_num:i32) {
+        let mut guard = self.m.lock().unwrap();
+        let mut next_exe_guard = self.next_exe.read().unwrap();
+        while *next_exe_guard != exe_num {
+            drop(next_exe_guard);
+            guard = self.cvar.wait(guard).unwrap();
+            next_exe_guard = self.next_exe.read().unwrap();
+        }
+        // to avoid read -> write deadlock
+        drop(next_exe_guard);
+        thread::sleep(Duration::from_millis(10));
+
+        match self.order.pop_front() {
+            Some(next_exe_num) => {
+                let mut w = self.next_exe.write().unwrap();
+                *w = next_exe_num;
+            },
+            None => { /* it was the last of the vecdeque */ },
+        }
+        self.cvar.notify_all();
     }
 }
