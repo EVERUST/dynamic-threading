@@ -125,6 +125,11 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
         }
     }
     _append_exe_node(tid, -1, line, func_num, func_name_str, None);
+    unsafe{
+        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
+            shuffled_order.wait_or_pass(func_num);
+        }
+    }
 }
 
 pub fn _probe_spawning_(line:i32, func_num:i32){
@@ -142,6 +147,11 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
         }
     }
     _append_exe_node(tid, -1, line, func_num, "spawning", None);
+    unsafe{
+        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
+            shuffled_order.wait_or_pass(func_num);
+        }
+    }
 }
 
 pub fn _probe_spawned_(line:i32, func_num:i32){
@@ -161,6 +171,11 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
         }
     }
     _append_exe_node(tid, parent_tid, line, func_num, "spawned", None);
+    unsafe{
+        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
+            shuffled_order.wait_or_pass(func_num);
+        }
+    }
 }
 
 fn _probe_get_custom_tid(target_tid:thread::ThreadId) -> i32{
@@ -251,7 +266,7 @@ impl fmt::Display for _ProbeNode<'_>{
 }
 
 struct _ShuffledOrder{
-    order:VecDeque<i32>,
+    order:Mutex<VecDeque<i32>>,
     next_exe:RwLock<i32>,
     cvar:Condvar,
     m:Mutex<()>,
@@ -267,14 +282,14 @@ impl _ShuffledOrder{
         let next_exe_init = order.pop_front().unwrap();
 
         _ShuffledOrder{
-            order:order,
+            order:Mutex::new(order),
             next_exe:RwLock::new(next_exe_init),
             cvar: Condvar::new(),
             m: Mutex::new(()),
         }
     }
 
-    fn wait_or_pass(mut self, exe_num:i32) {
+    fn wait_or_pass(&self, exe_num:i32) {
         let mut guard = self.m.lock().unwrap();
         let mut next_exe_guard = self.next_exe.read().unwrap();
         while *next_exe_guard != exe_num {
@@ -284,15 +299,17 @@ impl _ShuffledOrder{
         }
         // to avoid read -> write deadlock
         drop(next_exe_guard);
-        thread::sleep(Duration::from_millis(10));
+        thread::sleep(Duration::from_millis(20));
+		let mut order_queue = self.order.lock().unwrap();
 
-        match self.order.pop_front() {
-            Some(next_exe_num) => {
-                let mut w = self.next_exe.write().unwrap();
-                *w = next_exe_num;
-            },
-            None => { /* it was the last of the vecdeque */ },
-        }
+		match order_queue.pop_front(){
+			Some(next_exe_num) => {
+				let mut w = self.next_exe.write().unwrap();
+				*w = next_exe_num;
+			},
+			None => { /* it was the last of the vecdeque */ },
+		}
+		
         self.cvar.notify_all();
     }
 }
