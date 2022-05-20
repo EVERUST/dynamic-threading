@@ -25,6 +25,8 @@ static mut _SHUFFLED_ORDER:Option<Arc<_ShuffledOrder>> = None;
 
 extern{
     fn atexit(callback: fn()) -> c_int;
+	fn srand(seed: u32);
+	fn time(time: *mut i64) -> i64;
 }
 
 pub fn _init_(){
