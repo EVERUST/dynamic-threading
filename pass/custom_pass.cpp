@@ -27,6 +27,7 @@ namespace {
 
       FunctionCallee p_init;
       FunctionCallee p_probe_mutex;
+      FunctionCallee p_probe_random_sleep;
       /*
       FunctionCallee p_probe_func;
       FunctionCallee p_probe_spawning;
@@ -85,10 +86,17 @@ namespace {
                            ConstantInt::get(intTy, loc, false), // line number
                            ConstantInt::get(intTy, func_num++, false),
                            builder.CreateGlobalStringPtr("lock", ""),
+                        };
+			builder.CreateCall(p_probe_random_sleep, args);
+
+                        Value* args2[] = {
+                           ConstantInt::get(intTy, loc, false), // line number
+                           ConstantInt::get(intTy, func_num++, false),
+                           builder.CreateGlobalStringPtr("lock", ""),
                            builder.CreateBitCast(var, ptrTy),
                         };
 
-                        builder.CreateCall(p_probe_mutex, args);
+                        builder.CreateCall(p_probe_mutex, args2);
                      } 
                      else if(funcName.find("_ZN4core3ptr60drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
                         IRBuilder<> builder(inv);
@@ -100,49 +108,57 @@ namespace {
                         Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
                         Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
 
-                        Value* args[] = {
+			Value* args[] = {
+                           ConstantInt::get(intTy, loc, false), // line number
+                           ConstantInt::get(intTy, func_num++, false),
+                           builder.CreateGlobalStringPtr("probe_random", ""),
+                        };
+                        builder.CreateCall(p_probe_random_sleep, args);
+
+                        Value* args2[] = {
                            ConstantInt::get(intTy, loc, false), // line number
                            ConstantInt::get(intTy, func_num++, false),
                            builder.CreateGlobalStringPtr("unlock", ""),
                            builder.CreateBitCast(lock, ptrTy),
                         };
-                        builder.CreateCall(p_probe_mutex, args);
+                        builder.CreateCall(p_probe_mutex, args2);
                      } 
                      else if(funcName.find("_ZN3std4sync4mpsc15Sender$LT$T$GT$4send"/*17h222a72a470795b19E*/) != std::string::npos){ //send
                         IRBuilder<> builder(inv);
 
                         int loc = inv->getDebugLoc().getLine();
 
-                        Value* args[] = {
-                           ConstantInt::get(intTy, loc, false),
+			Value* args[] = {
+                           ConstantInt::get(intTy, loc, false), // line number
                            ConstantInt::get(intTy, func_num++, false),
                            builder.CreateGlobalStringPtr("send", ""),
                         };
-                        //builder.CreateCall(p_probe_func, args);
+                        builder.CreateCall(p_probe_random_sleep, args);
                      } 
                      else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv"/*17h61c33427f2e2f6c6E*/) != std::string::npos){//recv
                         IRBuilder<> builder(inv);
 
                         int loc = inv->getDebugLoc().getLine();
 
-                        Value* args[] = {
-                           ConstantInt::get(intTy, loc, false),
+			Value* args[] = {
+                           ConstantInt::get(intTy, loc, false), // line number
                            ConstantInt::get(intTy, func_num++, false),
-                           builder.CreateGlobalStringPtr("recv", "")
+                           builder.CreateGlobalStringPtr("recv", ""),
                         };
-                        //builder.CreateCall(p_probe_func, args);
+                        builder.CreateCall(p_probe_random_sleep, args);
                      } 
                      else if(funcName.find("_ZN3std6thread5spawn"/*17he91e346dc8743a67E"*/) != std::string::npos){ //spawn
                         IRBuilder<> builder(inv);
 
                         int loc = inv->getDebugLoc().getLine();
 
-                        Value* args[] = {
-                           ConstantInt::get(intTy, loc, false),
+			Value* args[] = {
+                           ConstantInt::get(intTy, loc, false), // line number
                            ConstantInt::get(intTy, func_num++, false),
-                           //builder.CreateGlobalStringPtr("spawn", "")
+                           builder.CreateGlobalStringPtr("spawn", ""),
                         };
-                        //builder.CreateCall(p_probe_spawning, args);
+                        
+			builder.CreateCall(p_probe_random_sleep, args);
                      } 
                      else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join"/*17hd223c567ab090f8cE"*/) != std::string::npos){ //join
                         IRBuilder<> builder(inv);
@@ -154,22 +170,10 @@ namespace {
                            ConstantInt::get(intTy, func_num++, false),
                            builder.CreateGlobalStringPtr("join", "")
                         };
-                        //builder.CreateCall(p_probe_func, args);
-                        /*
-                        //IRBuilder<> builder1(I.getNextNonDebugInstruction());
-                        //builder.SetInsertPoint(I.getNextNonDebugInstruction());
-                        builder.SetInsertPoint(&B, builder.GetInsertPoint()++);
-
-                        Value* args1[] = {
-                            ConstantInt::get(intTy, -1, false),
-                           ConstantInt::get(intTy, func_num++, false),
-                           builder.CreateGlobalStringPtr("aft_join", "")
-                        };
-                        builder.CreateCall(p_probe_func, args1);
-                        */
+			builder.CreateCall(p_probe_random_sleep, args);
                      }
                   }
-               } // opcode == Instruction::Invoke 
+               } 
                else if(I.getOpcode() == Instruction::Call) {
 	       } 
                else {}
@@ -192,33 +196,18 @@ namespace {
          LLVMContext &Ctx = F.getContext();
 
          FunctionType * fty = FunctionType::get(voidTy, false);
-         //p_init = F.getParent()->getOrInsertFunction("_init_", fty);
 	 //_ZN5probe6_init_17hfe36c3c52304281dE
          p_init = F.getParent()->getOrInsertFunction("_ZN5probe6_init_17hfe36c3c52304281dE", fty);
 
-
          vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy};
          fty = FunctionType::get(voidTy, paramTypes, false);
-         //p_probe_mutex = F.getParent()->getOrInsertFunction("_probe_mutex_", fty);
-         p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN5probe13_probe_mutex_17h8fae4d38fa3f3183E", fty);
+         p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN5probe13_probe_mutex_17h9b989f2138541d65E", fty);
 
-/*
-         paramTypes = {intTy, intTy, ptrTy};      
-         fty = FunctionType::get(voidTy, paramTypes, false);
-         //p_probe_func = F.getParent()->getOrInsertFunction("_probe_func_", fty);
-         p_probe_func = F.getParent()->getOrInsertFunction("_probe_func_", fty);
+	 paramTypes = {intTy, intTy, ptrTy};
+	 fty = FunctionType::get(voidTy, paramTypes, false);
+	 p_probe_random_sleep = F.getParent()->getOrInsertFunction("_ZN5probe19_probe_random_sleep17h12324cd50b02f1fbE", fty);
          
-         paramTypes = {intTy, intTy};      
-         fty = FunctionType::get(voidTy, paramTypes, false);
-         //p_probe_spawning = F.getParent()->getOrInsertFunction("_probe_spawning_", fty);
-         p_probe_spawning = F.getParent()->getOrInsertFunction("_probe_spawning_", fty);
-         
-         paramTypes = {intTy, intTy};      
-         fty = FunctionType::get(voidTy, paramTypes, false);
-         //p_probe_spawned = F.getParent()->getOrInsertFunction("_probe_spawned_", fty);
-         p_probe_spawned = F.getParent()->getOrInsertFunction("_probe_spawned_", fty);
-*/
-         Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
+	 Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
          if(mainFunc != NULL) {
             IRBuilder<> builder(mainFunc->getEntryBlock().getFirstNonPHI());
             vector<Value *> ArgsV;

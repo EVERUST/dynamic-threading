@@ -10,7 +10,6 @@ cd build
 #clang -pthread -c ../probe/probe.c -o probe.o
 
 rustc --crate-type=lib --emit=obj -o probe.o ../probe/probe.rs
-
 cmake -DLT_LLVM_INSTALL_DIR=$LLVM ../pass
 make
 
