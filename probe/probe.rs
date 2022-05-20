@@ -45,7 +45,6 @@ pub fn _init_(){
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "---------------------From _init_---------------------\n").expect("write failed\n");
-            // calling thread::current().id() returns None... lead to assertion fail
             write!(file_stream, "ThreadId(1) :     main\n").expect("write failed\n"); 
         }
         atexit(_final_);
@@ -89,7 +88,7 @@ pub fn _probe_random_sleep(line:i32, func_num:i32, func_name:*const c_char){
     _append_exe_node(tid, -1, line, func_num, func_name_str, None);
 
     unsafe{
-    // random sleep
+        // random sleep
         let mut seed: i64 = 0;
         srand(time(&mut seed).try_into().unwrap());
         let r:u64 = rand().try_into().unwrap();
@@ -115,7 +114,6 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
     unsafe{
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
-            //tid = _probe_get_custom_tid(thread::current().id());
             write!(file_stream, "tid: {} | func_name: {:>8} | line: {:>4} | func_num: {} | lock_var_addr: {:?}\n", 
                             tid, func_name_str, line, func_num, lock_var_addr).expect("write failed\n");
         }
@@ -132,7 +130,6 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
     unsafe{
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
-            //tid = _probe_get_custom_tid(thread::current().id());
             write!(file_stream, "tid: {} | func_name: {:>8} | line: {:>4} | func_num: {} |\n", 
                             tid, func_name_str, line, func_num).expect("write failed\n");
         }
@@ -149,7 +146,6 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
         _PROBE_PARENT_ID = Some(thread::current().id());
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
-            //tid = _probe_get_custom_tid(thread::current().id());
             write!(file_stream, "tid: {} | func_name: spawning | line: {:>4} | func_num: {} |\n", 
                             tid, line, func_num).expect("write failed\n");
         }
@@ -164,7 +160,6 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
         parent_tid = _probe_get_custom_tid(_PROBE_PARENT_ID.unwrap());
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
-            //tid = _probe_get_custom_tid(thread::current().id());
             write!(file_stream, "tid: {} | func_name:  spawned | line: {:>4} | func_num: {} | ", 
                             tid, line, func_num).expect("write failed\n");
             write!(file_stream, "{} spawned {}\n", parent_tid, tid).expect("write failed\n");
