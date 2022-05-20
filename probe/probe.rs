@@ -1,10 +1,5 @@
 use std::{
-    sync::{
-        Arc,
-        Condvar,
-        Mutex,
-        RwLock,
-    },
+    sync::{ Arc, Condvar, Mutex, RwLock, },
     fs::{OpenOptions, File},
     io::prelude::*,
     thread,
@@ -23,6 +18,9 @@ static mut _PROBE_PARENT_ID:Option<thread::ThreadId> = None;
 static mut _PROBE_THRD_MAP:Option<Arc<Mutex<HashMap<thread::ThreadId, i32>>>> = None;
 static mut _PROBE_THRD_CUSTOM_ID:Option<Arc<Mutex<i32>>> = None;
 static mut _PROBE_THRD_EXE:Option<Arc<Mutex<Vec<Vec<_ProbeNode>>>>> = None;
+static mut _SHUFFLED_ORDER:Option<Arc<_ShuffledOrder>> = None;
+
+const _MAX_SLEEP: u64 = 10;
 
 extern{
     fn atexit(callback: fn()) -> c_int;
@@ -94,38 +92,29 @@ pub fn _final_(){
 
 pub fn _probe_random_sleep(line:i32, func_num:i32, func_name:*const c_char){
     let func_name_str:&str;
-    let tid = _probe_get_custom_tid(thread::current().id());
+    let tid = __get_custom_tid(thread::current().id());
     unsafe{
-        func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
-        if let Some(fp_arc) = &_PROBE_FP{
-            let mut file_stream = fp_arc.lock().unwrap();
-            write!(file_stream, "|RANDOM_SLEEP_START!|tid: {} | func_name: {:>8} | line: {:>4} | func_num: {} |\n", 
-                            tid, func_name_str, line, func_num).expect("write failed\n");
-        }
-    }
-    _append_exe_node(tid, -1, line, func_num, func_name_str, None);
-
-    unsafe{
-        // random sleep
         let mut seed: i64 = 0;
         srand(time(&mut seed).try_into().unwrap());
         let r:u64 = rand().try_into().unwrap();
-        thread::sleep(time::Duration::from_millis(r % 10));
+        thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
 
+        func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "|RANDOM_SLEEP_WAKE!|tid: {} | func_name: {:>8} | line: {:>4} | func_num: {} |\n", 
                             tid, func_name_str, line, func_num).expect("write failed\n");
         }
     }
-    _append_exe_node(tid, -1, line, func_num, func_name_str, None);
-
-
+    __record_thread_exe_order(tid, -1, line, func_num, func_name_str, None);
 }
 
+
+
 pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_addr:*mut u64){
+    __sleep_random_for_probe_func();
     let func_name_str:&str;
-    let tid = _probe_get_custom_tid(thread::current().id());
+    let tid = __get_custom_tid(thread::current().id());
     unsafe{
         func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
     }
@@ -136,7 +125,7 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
                             tid, func_name_str, line, func_num, lock_var_addr).expect("write failed\n");
         }
     }
-    _append_exe_node(tid, -1, line, func_num, func_name_str, Some(lock_var_addr));
+    __record_thread_exe_order(tid, -1, line, func_num, func_name_str, Some(lock_var_addr));
     unsafe{
         if let Some(shuffled_order) = &_SHUFFLED_ORDER {
             shuffled_order.wait_or_pass(func_num);
@@ -145,8 +134,9 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
 }
 
 pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
+    __sleep_random_for_probe_func();
     let func_name_str:&str;
-    let tid = _probe_get_custom_tid(thread::current().id());
+    let tid = __get_custom_tid(thread::current().id());
     unsafe{
         func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
     }
@@ -157,7 +147,7 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
                             tid, func_name_str, line, func_num).expect("write failed\n");
         }
     }
-    _append_exe_node(tid, -1, line, func_num, func_name_str, None);
+    __record_thread_exe_order(tid, -1, line, func_num, func_name_str, None);
     unsafe{
         if let Some(shuffled_order) = &_SHUFFLED_ORDER {
             shuffled_order.wait_or_pass(func_num);
@@ -166,7 +156,8 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
 }
 
 pub fn _probe_spawning_(line:i32, func_num:i32){
-    let tid = _probe_get_custom_tid(thread::current().id());
+    __sleep_random_for_probe_func();
+    let tid = __get_custom_tid(thread::current().id());
     unsafe{
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.dec();
@@ -178,7 +169,7 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
                             tid, line, func_num).expect("write failed\n");
         }
     }
-    _append_exe_node(tid, -1, line, func_num, "spawning", None);
+    __record_thread_exe_order(tid, -1, line, func_num, "spawning", None);
     unsafe{
         if let Some(shuffled_order) = &_SHUFFLED_ORDER {
             shuffled_order.wait_or_pass(func_num);
@@ -187,10 +178,11 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
 }
 
 pub fn _probe_spawned_(line:i32, func_num:i32){
-    let tid = _probe_get_custom_tid(thread::current().id());
+    __sleep_random_for_probe_func();
+    let tid = __get_custom_tid(thread::current().id());
     let parent_tid:i32;
     unsafe{
-        parent_tid = _probe_get_custom_tid(_PROBE_PARENT_ID.unwrap());
+        parent_tid = __get_custom_tid(_PROBE_PARENT_ID.unwrap());
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "tid: {} | func_name:  spawned | line: {:>4} | func_num: {} | ", 
@@ -201,7 +193,7 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
             sema.inc();
         }
     }
-    _append_exe_node(tid, parent_tid, line, func_num, "spawned", None);
+    __record_thread_exe_order(tid, parent_tid, line, func_num, "spawned", None);
     unsafe{
         if let Some(shuffled_order) = &_SHUFFLED_ORDER {
             shuffled_order.wait_or_pass(func_num);
@@ -209,7 +201,16 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
     }
 }
 
-fn _probe_get_custom_tid(target_tid:thread::ThreadId) -> i32{
+fn __sleep_random_for_probe_func(){
+    unsafe{
+        let mut seed: i64 = 0;
+        srand(time(&mut seed).try_into().unwrap());
+        let r:u64 = rand().try_into().unwrap();
+        thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
+    }        
+}
+
+fn __get_custom_tid(target_tid:thread::ThreadId) -> i32{
     let mut curr_id = -1;
     unsafe{
         if let Some(hash) = &_PROBE_THRD_MAP{
@@ -226,7 +227,14 @@ fn _probe_get_custom_tid(target_tid:thread::ThreadId) -> i32{
     curr_id
 }
 
-fn _append_exe_node(tid:i32, parent_tid:i32, line_num:i32, func_num:i32, func_name:&'static str, var_addr:Option<*const u64>){
+fn __record_thread_exe_order(
+    tid:i32, 
+    parent_tid:i32, 
+    line_num:i32, 
+    func_num:i32, 
+    func_name:&'static str, 
+    var_addr:Option<*const u64>
+) {
     unsafe{
         if let Some(thrd_vec) = &_PROBE_THRD_EXE{
             let mut thrd_vec = thrd_vec.lock().unwrap();
