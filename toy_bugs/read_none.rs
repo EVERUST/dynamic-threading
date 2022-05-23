@@ -11,7 +11,6 @@ struct Shared{
 }
 
 fn thrd1(shared:Arc<Mutex<Shared>>){
-    println!("in thred 1");
     //thread::sleep(Duration::from_millis(1000));
     let mut shared = shared.lock().unwrap();
     shared.data = Some(1);

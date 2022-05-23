@@ -171,31 +171,28 @@ namespace {
 
 			FunctionType * fty = FunctionType::get(voidTy, false);
 			//p_init = F.getParent()->getOrInsertFunction("_init_", fty);
-			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_RSE6_init_17hf804c7106d130da0E", fty);
-			//_ZN9probe_RSE6_init_17hf804c7106d130da0E
+			p_init = F.getParent()->getOrInsertFunction("_ZN5probe6_init_17hfe36c3c52304281dE", fty);
 
 			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy};
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_mutex = F.getParent()->getOrInsertFunction("_probe_mutex_", fty);
-			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_RSE13_probe_mutex_17h00a1a9c41158238fE", fty);
-			//_ZN9probe_RSE13_probe_mutex_17h00a1a9c41158238fE
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN5probe13_probe_mutex_17h9b989f2138541d65E", fty);
 
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_func = F.getParent()->getOrInsertFunction("_probe_func_", fty);
-			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_RSE12_probe_func_17h817346fa42d66a09E", fty);
-			//_ZN9probe_RSE12_probe_func_17h817346fa42d66a09E
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN5probe12_probe_func_17hd56874fc8e15639eE", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_spawning = F.getParent()->getOrInsertFunction("_probe_spawning_", fty);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_RSE16_probe_spawning_17he1598d66b0ab4500E", fty);
-			//_ZN9probe_RSE16_probe_spawning_17he1598d66b0ab4500E
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN5probe16_probe_spawning_17h77e1d69da6b88094E", fty);
+			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_spawned = F.getParent()->getOrInsertFunction("_probe_spawned_", fty);
-			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_RSE15_probe_spawned_17hfa456b2bbcd59460E", fty);
-			//_ZN9probe_RSE15_probe_spawned_17hfa456b2bbcd59460E
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN5probe15_probe_spawned_17ha99126e232692ea3E", fty);
+
 			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
 			if(mainFunc != NULL) {
 				IRBuilder<> builder(mainFunc->getEntryBlock().getFirstNonPHI());
