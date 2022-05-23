@@ -5,7 +5,7 @@ use std::{
     thread,
     time,
     ffi::CStr,
-    os::raw::{c_char, c_int},
+    os::raw::{c_char, c_int, c_void},
     collections::{HashMap, VecDeque},
     fmt,
     time::Duration,
@@ -27,6 +27,7 @@ extern{
     fn srand(seed: u32);
     fn time(time: *mut i64) -> i64;
     fn rand() -> c_int;
+    fn __builtin_return_address(level: u32) -> *mut c_void;
 }
 
 pub fn _init_(){
@@ -123,6 +124,7 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "tid: {} | func_name: {:>8} | line: {:>4} | func_num: {} | lock_var_addr: {:?}\n", 
                             tid, func_name_str, line, func_num, lock_var_addr).expect("write failed\n");
+            //write!(file_stream, "ret addr: {:?}\n", __builtin_return_address(0));
         }
     }
     __record_thread_exe_order(tid, -1, line, func_num, func_name_str, Some(lock_var_addr));

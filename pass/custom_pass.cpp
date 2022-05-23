@@ -171,27 +171,27 @@ namespace {
 
 			FunctionType * fty = FunctionType::get(voidTy, false);
 			//p_init = F.getParent()->getOrInsertFunction("_init_", fty);
-			p_init = F.getParent()->getOrInsertFunction("_ZN5probe6_init_17hfe36c3c52304281dE", fty);
+			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_tle6_init_17hab361908c6dce481E", fty);
 
 			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy};
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_mutex = F.getParent()->getOrInsertFunction("_probe_mutex_", fty);
-			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN5probe13_probe_mutex_17h9b989f2138541d65E", fty);
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_tle13_probe_mutex_17h80ff35bd1207ef42E", fty);
 
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_func = F.getParent()->getOrInsertFunction("_probe_func_", fty);
-			p_probe_func = F.getParent()->getOrInsertFunction("_ZN5probe12_probe_func_17hd56874fc8e15639eE", fty);
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_tle12_probe_func_17h1420926937153729E", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_spawning = F.getParent()->getOrInsertFunction("_probe_spawning_", fty);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN5probe16_probe_spawning_17h77e1d69da6b88094E", fty);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_tle16_probe_spawning_17h8ab35c22afc074caE", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
 			//p_probe_spawned = F.getParent()->getOrInsertFunction("_probe_spawned_", fty);
-			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN5probe15_probe_spawned_17ha99126e232692ea3E", fty);
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_tle15_probe_spawned_17had8adcf2b46404beE", fty);
 
 			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
 			if(mainFunc != NULL) {

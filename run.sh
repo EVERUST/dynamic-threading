@@ -7,7 +7,8 @@ mkdir build
 cd build
 
 #clang -pthread -c -D STACKTRACE ../probe/probe.c -o probe.o
-rustc --crate-type=lib --emit=obj ../probe/probe.rs -o probe.o
+rustc --crate-type=lib --emit=obj ../probe/probe_tle.rs -o probe_tle.o
+#rustc --crate-type=lib --emit=obj ../probe/probe.rs -o probe.o
 #clang -pthread -c ../probe/probe.c -o probe.o
 #clang -pthread -c ../probe/probe.cpp -o probe.o
 
@@ -18,6 +19,8 @@ make
 rustc --emit=llvm-ir -g -C opt-level=0 $TARGET_PROGRAM -o target.ll
 #rustc --emit=llvm-ir $TARGET_PROGRAM -o target.ll
 $LLVM/bin/opt -o out.ll -load-pass-plugin ./libpass.so -passes=Custom_pass target.ll
-$LLVM/bin/clang -L /usr/lib/rustlib/x86_64-unknown-linux-gnu/lib/ -lstd-100ac2470628c6dd -lpthread -lrt out.ll probe.o
+$LLVM/bin/clang -L /usr/lib/rustlib/x86_64-unknown-linux-gnu/lib/ -lstd-100ac2470628c6dd -lpthread -lrt out.ll probe_tle.o 
+
+echo "----------build successful----------"
 
 ../build/a.out

@@ -1,11 +1,10 @@
 TODOS:
-read from file (exe order)
-get partial order of threads (exe order)
-shuffle
-
-channel (complicates shuffle)
+seperate traffic light probe and random sleep probe (pc counter)
+rse mut detect the crash of the target program
 
 insert probe at end of closure main (threaded)
+get partial order of threads (exe order)
+handle channel (complicates shuffle)
 
 ============================
 
@@ -18,3 +17,9 @@ semaphore at spawn and spawned
 translate probe.c to probe.rs 
 	--> the function name still remain unresolved
 write to file (info of the target program)
+read from file (exe order)
+
+=============================
+
+WONT DO:
+shuffle
