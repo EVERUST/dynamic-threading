@@ -10,7 +10,7 @@ rm -rf RSE
 mkdir RSE
 cd RSE
 #while true;
-while [ $RCNT -le 10 ] ;
+while [ $RCNT -le 3 ] ;
 do
 	# build.sh
 	rm -rf build
@@ -28,7 +28,12 @@ do
 
 	../../RSE/build/a.out
 	exit_status=$?
-	cat struct
+	
+	if [ $RCNT -eq 0 ];
+	then
+		cp struct ../../TLE/STRUCT
+	fi
+
 	if [ $exit_status -eq 0 ];
 	then
 		echo exit_status is $exit_status
