@@ -11,6 +11,7 @@ struct Shared{
 }
 
 fn thrd1(shared:Arc<Mutex<Shared>>){
+	thread::sleep(Duration::from_millis(10));
     let mut shared = shared.lock().unwrap();
     shared.data = Some(1);
 }
@@ -38,6 +39,6 @@ fn main(){
     for child in children{
         let _ = child.join();
     }
-    //let mut shared = shared.lock().unwrap();
-    //println!("main found {:?}", shared.data.unwrap());
+    let mut shared = shared.lock().unwrap();
+    println!("main found {:?}", shared.data.unwrap());
 }
