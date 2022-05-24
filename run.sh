@@ -12,7 +12,7 @@ rustc --crate-type=lib --emit=obj ../probe/probe_tle.rs -o probe_tle.o
 #clang -pthread -c ../probe/probe.c -o probe.o
 #clang -pthread -c ../probe/probe.cpp -o probe.o
 
-rustc --crate-type=lib --emit=obj -o probe.o ../probe/probe.rs
+#rustc --crate-type=lib --emit=obj -o probe.o ../probe/probe.rs
 cmake -DLT_LLVM_INSTALL_DIR=$LLVM ../pass
 make
 

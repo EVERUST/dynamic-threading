@@ -6,7 +6,6 @@ use std::{
     ffi::CStr,
     os::raw::{c_char, c_int},
     collections::VecDeque,
-    fmt,
     time::Duration,
     cell::RefCell,
 };
@@ -29,31 +28,35 @@ thread_local! {
     static CHILD_ID:RefCell<i32> = RefCell::new(1);
 }
 
-
 pub fn _init_(){
     unsafe{
         _PROBE_THRD_SEM = Some(Arc::new(_ProbeSemaphore::new(1))); // allow only 1 thread
         _PROBE_FP = Some(Arc::new(Mutex::new(OpenOptions::new()
                                             .write(true)
                                             .create(true)
-                                            .append(true)
+                                            //.append(true)
                                             .open("log")
                                             .unwrap())));
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "---------------------From _init_---------------------\n").expect("write failed\n");
             // calling thread::current().id() returns None... lead to assertion fail
-            write!(file_stream, "ThreadId(1) :     main\n").expect("write failed\n"); 
+            write!(file_stream, "tid: 1        | main\n").expect("write failed\n"); 
         }
         atexit(_final_);
     }
-    let shuffle_stream_res = OpenOptions::new().read(true).open("scenario");
-    if let Ok(mut shuffle_stream) = shuffle_stream_res { 
-        println!("DEBUG read scenario success");
-        let mut shuffle_order_str = String::new();
-        shuffle_stream.read_to_string(&mut shuffle_order_str).expect("fail to read from file\n");
-        unsafe{
-            _SHUFFLED_ORDER = Some(Arc::new(_ShuffledOrder::new(shuffle_order_str)));
+    match OpenOptions::new().read(true).open("scenario") {
+        Ok(mut shuffle_stream) => {
+            println!("DEBUG read scenario success");
+            let mut shuffle_order_str = String::new();
+            shuffle_stream.read_to_string(&mut shuffle_order_str).expect("fail to read from file\n");
+            unsafe{
+                _SHUFFLED_ORDER = Some(Arc::new(_ShuffledOrder::new(shuffle_order_str)));
+            }
+        }
+        Err(_) => {
+            println!("MSG FROM TLE: FAIL TO READ SCENARIO, EXITING...");
+            std::process::exit(1);
         }
     }
 
@@ -75,17 +78,11 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
     unsafe{
         TID.with(|tid| {
             let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
+            __write_log(tid.borrow().to_string(), func_name_str, line, func_num, Some(lock_var_addr));
 
-            if let Some(fp_arc) = &_PROBE_FP{
-                let mut file_stream = fp_arc.lock().unwrap();
-                write!(file_stream, "tid: {} | func_name: {:>8} | line: {:>4} | func_num: {} | lock_var_addr: {:?}\n", 
-                                tid.borrow(), func_name_str, line, func_num, lock_var_addr).expect("write failed\n");
-            }
+            traffic_light(tid.borrow().to_string(), func_num);
         });
 
-        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-            shuffled_order.wait_or_pass(func_num);
-        }
     }
 }
 
@@ -93,17 +90,10 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
     unsafe{
         TID.with(|tid| {
             let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
+            __write_log(tid.borrow().to_string(), func_name_str, line, func_num, None);
 
-            if let Some(fp_arc) = &_PROBE_FP{
-                let mut file_stream = fp_arc.lock().unwrap();
-                write!(file_stream, "tid: {} | func_name: {:>8} | line: {:>4} | func_num: {} |\n", 
-                                tid.borrow(), func_name_str, line, func_num).expect("write failed\n");
-            }
+            traffic_light(tid.borrow().to_string(), func_num);
         });
-
-        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-            shuffled_order.wait_or_pass(func_num);
-        }
     }
 }
 
@@ -117,18 +107,12 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
                 let mut child_id = child_id.borrow_mut();
                 _PROBE_NEW_THREAD_ID= Some(format!("{}.{}", &tid.borrow(), child_id));
                 *child_id += 1;
+            });
 
-                if let Some(fp_arc) = &_PROBE_FP{
-                    let mut file_stream = fp_arc.lock().unwrap();
-                    write!(file_stream, "tid: {} | func_name: spawning | line: {:>4} | func_num: {} |\n", 
-                                    tid.borrow(), line, func_num).expect("write failed\n");
-                }
-            })
+            __write_log(tid.borrow().to_string(), "spawning", line, func_num, None);
+
+            traffic_light(tid.borrow().to_string(), func_num);
         });
-
-        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-            shuffled_order.wait_or_pass(func_num);
-        }
     }
 }
 
@@ -139,20 +123,36 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
                 tid.replace(new_thread_id.to_owned());
             }
 
-            if let Some(fp_arc) = &_PROBE_FP{
-                let mut file_stream = fp_arc.lock().unwrap();
-                write!(file_stream, "tid: {} | func_name:  spawned | line: {:>4} | func_num: {} | \n", 
-                                tid.borrow(), line, func_num).expect("write failed\n");
-            }
+            __write_log(tid.borrow().to_string(), "spawned", line, func_num, None);
+
+            traffic_light(tid.borrow().to_string(), func_num);
         });
 
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.inc();
         }
+    }
+}
 
-        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-            shuffled_order.wait_or_pass(func_num);
+unsafe fn __write_log(tid:String, func_name:&str, line:i32, func_num:i32, var_addr:Option<*const u64>){
+    if let Some(fp_arc) = &_PROBE_FP{
+        let mut file_stream = fp_arc.lock().unwrap();
+        match var_addr {
+            Some(var_addr) => {
+                write!(file_stream, "tid: {:<8} | func_name: {:<8} | line: {:>4} | func_num: {:>3} | lock_var_addr: {:?}\n", 
+                            tid, func_name, line, func_num, var_addr).expect("write failed\n");
+            },
+            None => {
+                write!(file_stream, "tid: {:<8} | func_name: {:<8} | line: {:>4} | func_num: {:>3} | \n", 
+                            tid, func_name, line, func_num).expect("write failed\n");
+            },
         }
+    }
+}
+
+unsafe fn traffic_light(tid:String, func_num:i32){
+    if let Some(shuffled_order) = &_SHUFFLED_ORDER {
+        shuffled_order.wait_for_green_light(tid, func_num);
     }
 }
 
@@ -190,19 +190,22 @@ impl _ProbeSemaphore {
 unsafe impl Send for _ProbeSemaphore {}
 unsafe impl Sync for _ProbeSemaphore {}
 
-struct _ShuffledOrder{
-    order:Mutex<VecDeque<i32>>,
-    next_exe:RwLock<i32>,
+struct _ShuffledOrder {
+    order:Mutex<VecDeque<String>>,
+    next_exe:RwLock<String>,
     cvar:Condvar,
     m:Mutex<()>,
 }
 
-impl _ShuffledOrder{
+impl _ShuffledOrder {
     fn new(shuffle_order_str:String) -> Self {
         let mut order = VecDeque::new();
-        let str_vec:Vec<&str> = shuffle_order_str.split_whitespace().collect();
+        let str_vec:Vec<&str> = shuffle_order_str.split("+").collect();
         for str_order in str_vec {
-            order.push_back(str_order.parse::<i32>().unwrap());
+            if str_order == "\n" {
+                continue;
+            }
+            order.push_back(String::from(str_order));
         }
         let next_exe_init = order.pop_front().unwrap();
 
@@ -214,10 +217,11 @@ impl _ShuffledOrder{
         }
     }
 
-    fn wait_or_pass(&self, exe_num:i32) {
+    fn wait_for_green_light(&self, tid:String, func_name:i32) {
+        let my_order = format!("{}-{}", tid, func_name).to_owned();
         let mut guard = self.m.lock().unwrap();
         let mut next_exe_guard = self.next_exe.read().unwrap();
-        while *next_exe_guard != exe_num {
+        while *next_exe_guard != my_order {
             drop(next_exe_guard);
             guard = self.cvar.wait(guard).unwrap();
             next_exe_guard = self.next_exe.read().unwrap();
