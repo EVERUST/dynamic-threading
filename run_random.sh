@@ -5,7 +5,7 @@ cd build
 
 while [ $RCNT -le 3000 ] ;
 do
-	./rse 
+	./rse > prog_out
 
 	exit_status=$?
 
@@ -15,7 +15,7 @@ do
 	else
 		echo $RCNT EXIT FAILURE
 		mv log ../TLE/SC$CNT
-		mv prog_out ../TLS/OUT$CNT
+		mv prog_out ../TLE/OUT$CNT
 		CNT=$((CNT+1))
 	fi
 	RCNT=$((RCNT+1))

@@ -8,6 +8,8 @@ use std::{
     collections::VecDeque,
     time::Duration,
     cell::RefCell,
+    panic,
+    process,
 };
 
 // file stream to log
@@ -61,7 +63,14 @@ pub fn _init_(){
 
     TID.with(|tid|{
         tid.replace(String::from("1"));
-    })
+    });
+
+    //this panic hook might change the semantics of the panic hanlder of the target code  
+    let ori_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        ori_hook(panic_info);
+        process::exit(1);
+    }));
 }
 
 pub fn _final_(){

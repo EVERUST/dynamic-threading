@@ -20,7 +20,7 @@ rustc --emit=llvm-ir -g -C opt-level=0 $TARGET_PROGRAM -o target.ll
 $LLVM/bin/opt -o out_rse.ll -load-pass-plugin ./libpass.so -passes=RSE_pass target.ll
 $LLVM/bin/opt -o out_tle.ll -load-pass-plugin ./libpass.so -passes=TLE_pass target.ll
 
-$LLVM/bin/clang -o rssh  -L /usr/lib/rustlib/x86_64-unknown-linux-gnu/lib/ -lstd-100ac2470628c6dd -lpthread -lrt out_rse.ll probe_rse.o
+$LLVM/bin/clang -o rse  -L /usr/lib/rustlib/x86_64-unknown-linux-gnu/lib/ -lstd-100ac2470628c6dd -lpthread -lrt out_rse.ll probe_rse.o
 $LLVM/bin/clang -o ../TLE/tle -L /usr/lib/rustlib/x86_64-unknown-linux-gnu/lib/ -lstd-100ac2470628c6dd -lpthread -lrt out_tle.ll probe_tle.o
 
 unset LLVM

@@ -9,6 +9,8 @@ use std::{
     fmt,
     convert::TryInto,
     cell::RefCell,
+    panic,
+    process,
 };
 
 // file stream to log
@@ -61,6 +63,13 @@ pub fn _init_(){
     TID.with(|tid| {
         tid.replace(String::from("1"));
     });
+
+    //this panic hook might change the semantics of the panic hanlder of the target code  
+    let ori_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        ori_hook(panic_info);
+        process::exit(1);
+    }));
 }
 
 pub fn _final_(){
@@ -151,12 +160,20 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
                 __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, func_num, "spawned", None);
             });
         });
+
+        //atexit(_thread_term);
         
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.inc();
         }
     }
 }
+
+/*
+fn _thread_term(){
+    println!("the child thread has termianted successfully");
+}
+*/
 
 /*
     For recording execution structure
