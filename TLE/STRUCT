@@ -1,0 +1,12 @@
+tid 1 --------
+	tid: 1, line:   31, func: spawning, func_num:   4, var: None
+	tid: 1, line:   36, func: spawning, func_num:   5, var: None
+	tid: 1, line:   40, func:     join, func_num:   6, var: None
+	tid: 1, line:   40, func:     join, func_num:   6, var: None
+	tid: 1, line:   42, func:     lock, func_num:   7, var: 0x17b91f0
+tid 2 --------
+	tid: 1.1, line:   -1, func:  spawned, func_num:   1, var: None
+	tid: 1.1, line:   15, func:     lock, func_num:   2, var: 0x17b91f0
+tid 3 --------
+	tid: 1.2, line:   -1, func:  spawned, func_num:   0, var: None
+	tid: 1.2, line:   20, func:     lock, func_num:   3, var: 0x17b91f0

@@ -156,7 +156,10 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
     }
 }
 
-
+/*
+    Semaphore needed for syncing spawning.
+    If there is race between spawnings, it is really difficult to find out the parent of a spawned thread.
+*/
 
 struct _ProbeSemaphore {
     mutex: Mutex<i32>,
@@ -186,27 +189,6 @@ impl _ProbeSemaphore {
 }
 unsafe impl Send for _ProbeSemaphore {}
 unsafe impl Sync for _ProbeSemaphore {}
-
-struct _ProbeNode<'a>{
-    tid:i32,
-    parent_tid:i32,
-    line_num:i32,
-    func_num:i32,
-    func_name:&'a str,
-    var_addr:Option<*const u64>,
-}
-impl fmt::Display for _ProbeNode<'_>{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>)-> fmt::Result{
-        match self.var_addr{
-            Some(var_addr) => 
-                write!(f, "tid: {:>3}, parent_tid: {:>3}, line: {:>4}, func: {:>8}, func_num: {:>3}, var: {:?}",
-                        self.tid, self.parent_tid, self.line_num, self.func_name, self.func_num, var_addr),
-            None =>
-                write!(f, "tid: {:>3}, parent_tid: {:>3}, line: {:>4}, func: {:>8}, func_num: {:>3}, var: None",
-                        self.tid, self.parent_tid, self.line_num, self.func_name, self.func_num),
-        }
-    }
-}
 
 struct _ShuffledOrder{
     order:Mutex<VecDeque<i32>>,
