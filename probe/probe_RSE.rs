@@ -1,27 +1,26 @@
 use std::{
-    sync::{ Arc, Condvar, Mutex, RwLock, },
+    sync::{ Arc, Condvar, Mutex, },
     fs::{OpenOptions, File},
     io::prelude::*,
     thread,
     time,
     ffi::{CStr},
     os::raw::{c_char, c_int},
-    collections::{HashMap, VecDeque},
     fmt,
-    time::Duration,
     convert::TryInto,
     cell::RefCell,
 };
+
+// file stream to log
 static mut _PROBE_FP:Option<Arc<Mutex<File>>> = None;
+// semaphore for allowing only one spawning thread at a time
 static mut _PROBE_THRD_SEM:Option<Arc<_ProbeSemaphore>> = None;
-static mut _PROBE_PARENT_ID:Option<thread::ThreadId> = None;
-static mut _PROBE_THRD_MAP:Option<Arc<Mutex<HashMap<thread::ThreadId, i32>>>> = None;
-static mut _PROBE_THRD_CUSTOM_ID:Option<Arc<Mutex<i32>>> = None;
+// for keeping track of parent thread id
+static mut _PROBE_NEW_THREAD_ID:Option<String> = None;
+// for keeping structure of the target program
 static mut _PROBE_THRD_EXE:Option<Arc<Mutex<Vec<Vec<_ProbeNode>>>>> = None;
-static mut _SHUFFLED_ORDER:Option<Arc<_ShuffledOrder>> = None;
-static mut _PROBE_NEW_THREAD_ID:Option<String>= None;
 
-
+// max sleep duration, unit: ms
 const _MAX_SLEEP: u64 = 10;
 
 extern{
@@ -34,60 +33,40 @@ extern{
 thread_local! {
     static TID:RefCell<String> = RefCell::new(String::from("none"));
     static CHILD_ID:RefCell<i32> = RefCell::new(1);
+    static EXE_NODE_ID:RefCell<i32> = RefCell::new(-1);
 }
 
 pub fn _init_(){
     unsafe{
         _PROBE_THRD_SEM = Some(Arc::new(_ProbeSemaphore::new(1))); // allow only 1 thread
-        _PROBE_THRD_MAP = Some(Arc::new(Mutex::new(HashMap::new())));
-        _PROBE_THRD_CUSTOM_ID = Some(Arc::new(Mutex::new(1)));
         _PROBE_FP = Some(Arc::new(Mutex::new(OpenOptions::new()
                                             .write(true)
                                             .create(true)
-                                            .append(true)
+                                            //.append(true)
                                             .open("log")
                                             .unwrap())));
-        if let Some(fp_arc) = &_PROBE_FP{
-            let mut file_stream = fp_arc.lock().unwrap();
-            write!(file_stream, "---------------------From _init_---------------------\n").expect("write failed\n");
-            // calling thread::current().id() returns None... lead to assertion fail
-            write!(file_stream, "ThreadId(1) :     main\n").expect("write failed\n"); 
+        match OpenOptions::new().read(true).open("struct"){
+            Ok(_) => { },
+            Err(_) => {
+                let mut thrd_vec:Vec<Vec<_ProbeNode>> = Vec::new();
+                thrd_vec.push(Vec::new());
+                _PROBE_THRD_EXE = Some(Arc::new(Mutex::new(thrd_vec)));
+            },
         }
         atexit(_final_);
     }
-    let shuffle_stream_res = OpenOptions::new().read(true).open("scenario");
-    match shuffle_stream_res {
-        Ok(mut shuffle_stream) => {
-            println!("DEBUG read scenario success");
-            let mut shuffle_order_str = String::new();
-            shuffle_stream.read_to_string(&mut shuffle_order_str).expect("fail to read from file\n");
-            unsafe{
-                _SHUFFLED_ORDER = Some(Arc::new(_ShuffledOrder::new(shuffle_order_str)));
-            }
-
-       },
-        Err(_) => {
-            println!("read shuffle fail");
-            unsafe{
-                _PROBE_THRD_EXE = Some(Arc::new(Mutex::new(Vec::new())));
-            }
-        },
-    }
+    EXE_NODE_ID.with(|exe_node_id|{
+        exe_node_id.replace(0);
+    });
     TID.with(|tid| {
         tid.replace(String::from("1"));
-    })
+    });
 }
 
 pub fn _final_(){
     unsafe{
-        if let Some(fp_arc) = &_PROBE_FP{
-            let mut file_stream = fp_arc.lock().unwrap();
-            write!(file_stream, "---------------------From _final---------------------\n").expect("write failed\n");
-        }
-    }
-    let mut struct_stream = OpenOptions::new().write(true).create(true).append(true).open("struct").unwrap();
-    unsafe{
         if let Some(vec_thrds) = &_PROBE_THRD_EXE{
+            let mut struct_stream = OpenOptions::new().write(true).create(true).append(true).open("struct").unwrap();
             let vec_thrds = vec_thrds.lock().unwrap();
             let mut i = 1;
             for vec_thrd in &*vec_thrds {
@@ -102,143 +81,88 @@ pub fn _final_(){
 }
 
 pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, _lock_var_addr:*mut u64){
-    __sleep_random_for_probe_func();
-    let func_name_str:&str;
-    let tid_cnt = __get_custom_tid(thread::current().id());
+    __random_sleep();
+    
     unsafe{
-        func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
+        let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
         TID.with(|tid| {
-            if let Some(fp_arc) = &_PROBE_FP{
-                let mut file_stream = fp_arc.lock().unwrap();
-                write!(file_stream, "tid: {} | func_num: {} |\n", 
-                                tid.borrow(), func_num).expect("write failed\n");
-            }
-            __record_thread_exe_order(tid_cnt, (*tid.borrow()).clone(), line, func_num, func_name_str, Some(_lock_var_addr));
+            __write_log(tid.borrow().as_str(), func_num);
+            EXE_NODE_ID.with(|exe_node_id|{
+                __record_thread_structure(*exe_node_id.borrow(), (*tid.borrow()).clone(), line, func_num, func_name_str, Some(_lock_var_addr));
+            });
         });
-    }
-
-    unsafe{
-        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-            shuffled_order.wait_or_pass(func_num);
-        }
     }
 }
 
 pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
-    __sleep_random_for_probe_func();
-    let func_name_str:&str;
-    let tid_cnt = __get_custom_tid(thread::current().id());
-    unsafe{
-        func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
-        TID.with(|tid| {
-            if let Some(fp_arc) = &_PROBE_FP{
-                let mut file_stream = fp_arc.lock().unwrap();
-                write!(file_stream, "tid: {} | func_num: {} |\n", 
-                                tid.borrow(), func_num).expect("write failed\n");
-            }
-            __record_thread_exe_order(tid_cnt, (*tid.borrow()).clone(), line, func_num, func_name_str, None);
-        });
-    }
+    __random_sleep();
 
     unsafe{
-        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-            shuffled_order.wait_or_pass(func_num);
-        }
+        let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
+        TID.with(|tid| {
+            __write_log(tid.borrow().as_str(), func_num);
+            EXE_NODE_ID.with(|exe_node_id|{
+                __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, func_num, func_name_str, None);
+            });
+        });
     }
 }
 
 pub fn _probe_spawning_(line:i32, func_num:i32){
-    __sleep_random_for_probe_func();
-    let tid_cnt = __get_custom_tid(thread::current().id());
+    __random_sleep();
+    
     unsafe{
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.dec();
         }
         TID.with(|tid| {
+            __write_log(tid.borrow().as_str(), func_num);
             CHILD_ID.with(|child_id| {
                 let mut child_id = child_id.borrow_mut();
                 _PROBE_NEW_THREAD_ID = Some(format!("{}.{}", &tid.borrow(), child_id));
                 *child_id += 1;
 
-                if let Some(fp_arc) = &_PROBE_FP {
-                    let mut file_stream = fp_arc.lock().unwrap();
-                    write!(file_stream, "tid: {} | func_num: {} |\n",
-                        tid.borrow(), func_num).expect("write_failed\n");
-                }
-
-                __record_thread_exe_order(tid_cnt, (*tid.borrow()).clone(), line, func_num, "spawning", None);
+                EXE_NODE_ID.with(|exe_node_id|{
+                    __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, func_num, "spawning", None);
+                });
             })
         });
-    }
-
-    unsafe{
-        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-            shuffled_order.wait_or_pass(func_num);
-        }
     }
 }
 
 pub fn _probe_spawned_(line:i32, func_num:i32){
-    __sleep_random_for_probe_func();
-    let tid_cnt = __get_custom_tid(thread::current().id());
-    
+    __random_sleep();
+
     unsafe{
         TID.with(|tid| {
             if let Some(new_thread_id) = &_PROBE_NEW_THREAD_ID {
                 tid.replace(new_thread_id.to_owned());
             }
+            __write_log(tid.borrow().as_str(), func_num);
 
-            if let Some(fp_arc) = &_PROBE_FP {
-                let mut file_stream = fp_arc.lock().unwrap();
-                write!(file_stream, "tid: {} | func_num: {} |\n", 
-                            tid.borrow(), func_num).expect("write failed\n");
-            }
-            __record_thread_exe_order(tid_cnt, (*tid.borrow()).clone(), line, func_num, "spawned", None);
+            EXE_NODE_ID.with(|exe_node_id| {
+                // push new vec for newly spawned thread
+                if let Some(thrd_vec) = &_PROBE_THRD_EXE{
+                    let mut thrd_vec = thrd_vec.lock().unwrap();
+                    exe_node_id.replace(thrd_vec.len() as i32);
+                    thrd_vec.push(Vec::new());
+                }
+
+                __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, func_num, "spawned", None);
+            });
         });
         
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.inc();
         }
     }
-    
-    unsafe {
-        if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-            shuffled_order.wait_or_pass(func_num);
-        }
-    }
 }
 
-
-fn __sleep_random_for_probe_func(){
-    unsafe{
-        let mut seed: i64 = 0;
-        srand(time(&mut seed).try_into().unwrap());
-        let r:u64 = rand().try_into().unwrap();
-        thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
-    }        
-}
-
-fn __get_custom_tid(target_tid:thread::ThreadId) -> i32{
-    let mut curr_id = -1;
-    unsafe{
-        if let Some(hash) = &_PROBE_THRD_MAP{
-            let mut hash = hash.lock().unwrap();
-            if let Some(custom_id) = &_PROBE_THRD_CUSTOM_ID{
-                let mut custom_id = custom_id.lock().unwrap();
-                curr_id = *(hash.entry(target_tid).or_insert(*custom_id));
-                if curr_id == *custom_id{
-                    *custom_id += 1;
-                }
-            }
-        }
-    }
-    curr_id
-}
-
-fn __record_thread_exe_order(
-    //tid:i32, 
-    //parent_tid:i32, 
-    tid_cnt:i32,
+/*
+    For recording execution structure
+*/
+fn __record_thread_structure(
+    tid_ind:i32,
     tid:String,
     line_num:i32, 
     func_num:i32, 
@@ -248,10 +172,7 @@ fn __record_thread_exe_order(
     unsafe{
         if let Some(thrd_vec) = &_PROBE_THRD_EXE{
             let mut thrd_vec = thrd_vec.lock().unwrap();
-            if tid_cnt > thrd_vec.len() as i32 {
-                thrd_vec.push(Vec::new());
-            }
-            thrd_vec[tid_cnt as usize - 1].push(_ProbeNode{
+            thrd_vec[tid_ind as usize].push(_ProbeNode{
                 tid:tid,
                 line_num:line_num,
                 func_num:func_num,
@@ -260,6 +181,24 @@ fn __record_thread_exe_order(
             });
         }
     }
+}
+
+fn __write_log(tid:&str, func_num:i32){
+    unsafe{
+        if let Some(fp_arc) = &_PROBE_FP {
+            let mut file_stream = fp_arc.lock().unwrap();
+            write!(file_stream, "{}-{}+", tid, func_num).expect("write failed\n");
+        }
+    }
+}
+
+fn __random_sleep(){
+    unsafe{
+        let mut seed: i64 = 0;
+        srand(time(&mut seed).try_into().unwrap());
+        let r:u64 = rand().try_into().unwrap();
+        thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
+    }        
 }
 
 struct _ProbeSemaphore {
@@ -291,9 +230,10 @@ impl _ProbeSemaphore {
 unsafe impl Send for _ProbeSemaphore {}
 unsafe impl Sync for _ProbeSemaphore {}
 
+/*
+    data structure for keeping the execution order
+*/
 struct _ProbeNode<'a>{
-    //tid:i32, // HERE
-    //parent_tid:i32,
     tid: String,
     line_num:i32,
     func_num:i32,
@@ -312,53 +252,3 @@ impl fmt::Display for _ProbeNode<'_>{
         }
     }
 }
-
-struct _ShuffledOrder{
-    order:Mutex<VecDeque<i32>>,
-    next_exe:RwLock<i32>,
-    cvar:Condvar,
-    m:Mutex<()>,
-}
-
-impl _ShuffledOrder{
-    fn new(shuffle_order_str:String) -> Self {
-        let mut order = VecDeque::new();
-        let str_vec:Vec<&str> = shuffle_order_str.split_whitespace().collect();
-        for str_order in str_vec {
-            order.push_back(str_order.parse::<i32>().unwrap());
-        }
-        let next_exe_init = order.pop_front().unwrap();
-
-        _ShuffledOrder{
-            order:Mutex::new(order),
-            next_exe:RwLock::new(next_exe_init),
-            cvar: Condvar::new(),
-            m: Mutex::new(()),
-        }
-    }
-
-    fn wait_or_pass(&self, exe_num:i32) {
-        let mut guard = self.m.lock().unwrap();
-        let mut next_exe_guard = self.next_exe.read().unwrap();
-        while *next_exe_guard != exe_num {
-            drop(next_exe_guard);
-            guard = self.cvar.wait(guard).unwrap();
-            next_exe_guard = self.next_exe.read().unwrap();
-        }
-        // to avoid read -> write deadlock
-        drop(next_exe_guard);
-        thread::sleep(Duration::from_millis(20));
-        let mut order_queue = self.order.lock().unwrap();
-
-        match order_queue.pop_front(){
-            Some(next_exe_num) => {
-                let mut w = self.next_exe.write().unwrap();
-                *w = next_exe_num;
-            },
-            None => { /* it was the last of the vecdeque */ },
-        }
-
-        self.cvar.notify_all();
-    }
-}
-
