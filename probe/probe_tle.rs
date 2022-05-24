@@ -40,8 +40,7 @@ pub fn _init_(){
         if let Some(fp_arc) = &_PROBE_FP{
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "---------------------From _init_---------------------\n").expect("write failed\n");
-            // calling thread::current().id() returns None... lead to assertion fail
-            write!(file_stream, "tid: 1        | main\n").expect("write failed\n"); 
+            write!(file_stream, "tid: 1        | func_name: main\n").expect("write failed\n"); 
         }
         atexit(_final_);
     }
@@ -78,9 +77,7 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
     unsafe{
         TID.with(|tid| {
             let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
-            __write_log(tid.borrow().to_string(), func_name_str, line, func_num, Some(lock_var_addr));
-
-            traffic_light(tid.borrow().to_string(), func_num);
+            __traffic_light(tid.borrow().to_string(), func_name_str, line, func_num, Some(lock_var_addr));
         });
 
     }
@@ -90,9 +87,7 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
     unsafe{
         TID.with(|tid| {
             let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
-            __write_log(tid.borrow().to_string(), func_name_str, line, func_num, None);
-
-            traffic_light(tid.borrow().to_string(), func_num);
+            __traffic_light(tid.borrow().to_string(), func_name_str, line, func_num, None);
         });
     }
 }
@@ -109,9 +104,7 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
                 *child_id += 1;
             });
 
-            __write_log(tid.borrow().to_string(), "spawning", line, func_num, None);
-
-            traffic_light(tid.borrow().to_string(), func_num);
+            __traffic_light(tid.borrow().to_string(), "spawning", line, func_num, None);
         });
     }
 }
@@ -123,9 +116,7 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
                 tid.replace(new_thread_id.to_owned());
             }
 
-            __write_log(tid.borrow().to_string(), "spawned", line, func_num, None);
-
-            traffic_light(tid.borrow().to_string(), func_num);
+            __traffic_light(tid.borrow().to_string(), "spawned", line, func_num, None);
         });
 
         if let Some(sema) = &_PROBE_THRD_SEM{
@@ -150,9 +141,11 @@ unsafe fn __write_log(tid:String, func_name:&str, line:i32, func_num:i32, var_ad
     }
 }
 
-unsafe fn traffic_light(tid:String, func_num:i32){
+unsafe fn __traffic_light(tid:String, func_name:&str, line:i32, func_num:i32, var_addr:Option<*const u64>){
     if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-        shuffled_order.wait_for_green_light(tid, func_num);
+        shuffled_order.wait_for_green_light(tid.clone(), func_num);
+        __write_log(tid, func_name, line, func_num, var_addr);
+        shuffled_order.cvar.notify_all();
     }
 }
 
@@ -217,10 +210,16 @@ impl _ShuffledOrder {
         }
     }
 
+    /*
+        waits for the "green light", if the light is set, the function changes the next-should-be-run
+        function name, and exit the function. the caller must notify other threads to check undated order.
+    */
     fn wait_for_green_light(&self, tid:String, func_name:i32) {
         let my_order = format!("{}-{}", tid, func_name).to_owned();
+
         let mut guard = self.m.lock().unwrap();
         let mut next_exe_guard = self.next_exe.read().unwrap();
+
         while *next_exe_guard != my_order {
             drop(next_exe_guard);
             guard = self.cvar.wait(guard).unwrap();
@@ -228,9 +227,11 @@ impl _ShuffledOrder {
         }
         // to avoid read -> write deadlock
         drop(next_exe_guard);
-        thread::sleep(Duration::from_millis(20));
-		let mut order_queue = self.order.lock().unwrap();
 
+        // trying to prevent the race between previous thread and current thread
+        thread::sleep(Duration::from_millis(20));
+
+		let mut order_queue = self.order.lock().unwrap();
 		match order_queue.pop_front(){
 			Some(next_exe_num) => {
 				let mut w = self.next_exe.write().unwrap();
@@ -238,7 +239,5 @@ impl _ShuffledOrder {
 			},
 			None => { /* it was the last of the vecdeque */ },
 		}
-		
-        self.cvar.notify_all();
     }
 }
