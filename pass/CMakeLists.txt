@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10.2)
-project(llvm-tutor-hello-world)
+project(dynamic-threading)
 
 #===============================================================================
 # 1. LOAD LLVM CONFIGURATION

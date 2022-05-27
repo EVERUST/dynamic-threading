@@ -92,7 +92,7 @@ namespace {
 							} else if(funcName.find("_ZN3std4sync4mpsc15Sender$LT$T$GT$4send"/*17h222a72a470795b19E*/) != std::string::npos){ //send
 								int loc = inv->getDebugLoc().getLine();
 								IRBuilder<> builder(inv);
-
+								errs() << "SEND FOUND!\n";
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
@@ -102,6 +102,7 @@ namespace {
 							} else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv"/*17h61c33427f2e2f6c6E*/) != std::string::npos){//recv
 								int loc = inv->getDebugLoc().getLine();
 								IRBuilder<> builder(inv);
+								errs() << "RECEIVE FOUND!\n";
 
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
@@ -109,7 +110,7 @@ namespace {
 									builder.CreateGlobalStringPtr("recv", "")
 								};
 								builder.CreateCall(p_probe_recv, args);
-							} else if(funcName.find("_ZN3std6thread5spawn17he91e346dc8743a67E") != std::string::npos){ //spawn
+							} else if(funcName.find("_ZN3std6thread5spawn" /*17he91e346dc8743a67E*/) != std::string::npos){ //spawn
 								int loc = inv->getDebugLoc().getLine();
 								IRBuilder<> builder(inv);
 
@@ -119,7 +120,7 @@ namespace {
 									builder.CreateGlobalStringPtr("spawn", "")
 								};
 								builder.CreateCall(p_probe_thread_spawn, args);
-							} else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join17hd223c567ab090f8cE") != std::string::npos){ //join
+							} else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join" /*17hd223c567ab090f8cE*/) != std::string::npos){ //join
 								int loc = inv->getDebugLoc().getLine();
 								IRBuilder<> builder(inv);
 
@@ -132,6 +133,22 @@ namespace {
 							}
 						}
 					} else if(I.getOpcode() == Instruction::Call) {
+						CallInst * cal = dyn_cast<CallInst>(&I);
+						if(cal->getDebugLoc().get() != NULL && cal->getCalledFunction() != NULL) {
+							string funcName = cal->getCalledFunction()->getName().str();
+							if(funcName.find("_ZN3std4sync4mpsc15Sender$LT$T$GT$4send"/*17h222a72a470795b19E*/) != std::string::npos){ //send
+								int loc = cal->getDebugLoc().getLine();
+								IRBuilder<> builder(cal);
+
+
+								Value* args[] = {
+									ConstantInt::get(intTy, loc, false),
+									ConstantInt::get(intTy, func_num++, false),
+									builder.CreateGlobalStringPtr("call send", ""),
+								};
+								builder.CreateCall(p_probe_send, args);
+							}
+						}
 					} else {
 						//errs() << "not store or load\n";
 					}
