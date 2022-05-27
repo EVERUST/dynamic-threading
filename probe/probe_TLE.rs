@@ -48,7 +48,6 @@ pub fn _init_(){
     }
     match OpenOptions::new().read(true).open("scenario") {
         Ok(mut shuffle_stream) => {
-            println!("DEBUG read scenario success");
             let mut shuffle_order_str = String::new();
             shuffle_stream.read_to_string(&mut shuffle_order_str).expect("fail to read from file\n");
             unsafe{
@@ -82,26 +81,28 @@ pub fn _final_(){
     }
 }
 
-pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_addr:*mut u64){
+pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_addr:*mut u64, file_path:*const c_char){
     unsafe{
         TID.with(|tid| {
             let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
-            __traffic_light(tid.borrow().to_string(), func_name_str, line, func_num, Some(lock_var_addr));
+            let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
+            __traffic_light(tid.borrow().to_string(), func_name_str, line, func_num, Some(lock_var_addr), Some(file_path_str));
         });
 
     }
 }
 
-pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
+pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char, file_path:*const c_char){
     unsafe{
         TID.with(|tid| {
             let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
-            __traffic_light(tid.borrow().to_string(), func_name_str, line, func_num, None);
+            let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
+            __traffic_light(tid.borrow().to_string(), func_name_str, line, func_num, None, Some(file_path_str));
         });
     }
 }
 
-pub fn _probe_spawning_(line:i32, func_num:i32){
+pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
     unsafe{
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.dec();
@@ -113,7 +114,8 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
                 *child_id += 1;
             });
 
-            __traffic_light(tid.borrow().to_string(), "spawning", line, func_num, None);
+            let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
+            __traffic_light(tid.borrow().to_string(), "spawning", line, func_num, None, Some(file_path_str));
         });
     }
 }
@@ -125,7 +127,7 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
                 tid.replace(new_thread_id.to_owned());
             }
 
-            __traffic_light(tid.borrow().to_string(), "spawned", line, func_num, None);
+            __traffic_light(tid.borrow().to_string(), "spawned", line, func_num, None, None);
         });
 
         if let Some(sema) = &_PROBE_THRD_SEM{
@@ -134,26 +136,42 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
     }
 }
 
-unsafe fn __write_log(tid:String, func_name:&str, line:i32, func_num:i32, var_addr:Option<*const u64>){
+unsafe fn __write_log(tid:String, func_name:&str, line:i32, var_addr:Option<*const u64>, file_path:Option<&str>){
     if let Some(fp_arc) = &_PROBE_FP{
         let mut file_stream = fp_arc.lock().unwrap();
+        let file_path:String = match file_path {
+            Some(path) => {
+                let mut str_vec:Vec<&str> = path.split("/").collect();
+                let mut i = 0;
+                while i < str_vec.len() {
+                    if str_vec[i] == ".." {
+                        str_vec.remove(i);
+                        str_vec.remove(i-1);
+                        i -= 2;
+                    }
+                    i += 1;
+                }
+                str_vec.join("/")
+            },
+            None => String::from("None"),
+        };
         match var_addr {
             Some(var_addr) => {
-                write!(file_stream, "tid: {:<8} | func_name: {:<8} | line: {:>4} | func_num: {:>3} | lock_var_addr: {:?}\n", 
-                            tid, func_name, line, func_num, var_addr).expect("write failed\n");
+                write!(file_stream, "tid: {:<8} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}\n", 
+                            tid, func_name, var_addr, file_path, line).expect("write failed\n");
             },
             None => {
-                write!(file_stream, "tid: {:<8} | func_name: {:<8} | line: {:>4} | func_num: {:>3} | \n", 
-                            tid, func_name, line, func_num).expect("write failed\n");
+                write!(file_stream, "tid: {:<8} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}\n", 
+                            tid, func_name, "None", file_path, line).expect("write failed\n");
             },
         }
     }
 }
 
-unsafe fn __traffic_light(tid:String, func_name:&str, line:i32, func_num:i32, var_addr:Option<*const u64>){
+unsafe fn __traffic_light(tid:String, func_name:&str, line:i32, func_num:i32, var_addr:Option<*const u64>, file_path:Option<&str>){
     if let Some(shuffled_order) = &_SHUFFLED_ORDER {
         shuffled_order.wait_for_green_light(tid.clone(), func_num);
-        __write_log(tid, func_name, line, func_num, var_addr);
+        __write_log(tid, func_name, line, var_addr, file_path);
         shuffled_order.cvar.notify_all();
     }
 }

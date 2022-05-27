@@ -3,7 +3,7 @@ RCNT=0
 
 cd build
 
-while [ $RCNT -le 3000 ] ;
+while :
 do
 	./rse > prog_out
 
@@ -17,6 +17,7 @@ do
 		mv log ../TLE/SC$CNT
 		mv prog_out ../TLE/OUT$CNT
 		CNT=$((CNT+1))
+		break
 	fi
 	RCNT=$((RCNT+1))
 done

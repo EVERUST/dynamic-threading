@@ -34,17 +34,25 @@ namespace {
 		// Main entry point, takes IR unit to run the pass on (&F) and the
 		// corresponding pass manager (to be queried if need be)
 		PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
-			/*
-			string FName = F.getName().str();
-			if(FName.find("core") != string::npos || FName.find("std") != string::npos) {
-				return PreservedAnalyses::all();
-			}
-			*/						
-
 			if(!initial) {
 				initialization(F);
 				initial = true;
 			}
+
+			SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
+			string file;
+			string directory;
+			F.getAllMetadata(MDs);
+			for (auto &MD : MDs) {
+				if (MDNode *N = MD.second) {
+					if (auto *subProgram = dyn_cast<DISubprogram>(N)) {
+						file = subProgram->getFilename().str();
+						directory = subProgram->getDirectory().str();
+						break;
+					}
+				}
+			}
+			string filePath = directory + "/" + file;
 
 			for(auto& B : F) {
 				for(auto& I : B) {
@@ -80,6 +88,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("lock", ""),
 									builder.CreateBitCast(var, ptrTy),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -98,6 +107,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("unlock", ""),
 									builder.CreateBitCast(lock, ptrTy),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -110,6 +120,7 @@ namespace {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("send", ""),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
@@ -121,7 +132,8 @@ namespace {
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("recv", "")
+									builder.CreateGlobalStringPtr("recv", ""),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
@@ -133,7 +145,7 @@ namespace {
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									//builder.CreateGlobalStringPtr("spawn", "")
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_spawning, args);
 							} 
@@ -145,7 +157,8 @@ namespace {
 								Value* args[] = {
 								 	ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("join", "")
+									builder.CreateGlobalStringPtr("join", ""),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							}
@@ -172,17 +185,17 @@ namespace {
 			FunctionType * fty = FunctionType::get(voidTy, false);
 			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_RSE6_init_17hf804c7106d130da0E", fty);
 
-			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy};
+			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy, ptrTy};
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_RSE13_probe_mutex_17h00a1a9c41158238fE", fty);
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_RSE13_probe_mutex_17h6cdfffa70071c68fE", fty);
 
+			paramTypes = {intTy, intTy, ptrTy, ptrTy};		
+			fty = FunctionType::get(voidTy, paramTypes, false);
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_RSE12_probe_func_17h3bc9976a50f92ca7E", fty);
+			
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_RSE12_probe_func_17h817346fa42d66a09E", fty);
-			
-			paramTypes = {intTy, intTy};		
-			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_RSE16_probe_spawning_17he1598d66b0ab4500E", fty);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_RSE16_probe_spawning_17h4a8a64cd08b5677eE", fty);
 
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
@@ -213,17 +226,25 @@ namespace {
 		// Main entry point, takes IR unit to run the pass on (&F) and the
 		// corresponding pass manager (to be queried if need be)
 		PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
-			/*
-			string FName = F.getName().str();
-			if(FName.find("core") != string::npos || FName.find("std") != string::npos) {
-				return PreservedAnalyses::all();
-			}
-			*/
-
 			if(!initial) {
 				initialization(F);
 				initial = true;
 			}
+
+			SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
+			string file;
+			string directory;
+			F.getAllMetadata(MDs);
+			for (auto &MD : MDs) {
+				if (MDNode *N = MD.second) {
+					if (auto *subProgram = dyn_cast<DISubprogram>(N)) {
+						file = subProgram->getFilename().str();
+						directory = subProgram->getDirectory().str();
+						break;
+					}
+				}
+			}
+			string filePath = directory + "/" + file;
 
 			for(auto& B : F) {
 				for(auto& I : B) {
@@ -259,6 +280,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("lock", ""),
 									builder.CreateBitCast(var, ptrTy),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -277,6 +299,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("unlock", ""),
 									builder.CreateBitCast(lock, ptrTy),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -289,6 +312,7 @@ namespace {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("send", ""),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
@@ -300,7 +324,8 @@ namespace {
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("recv", "")
+									builder.CreateGlobalStringPtr("recv", ""),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
@@ -313,6 +338,7 @@ namespace {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
 									//builder.CreateGlobalStringPtr("spawn", "")
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_spawning, args);
 							} 
@@ -324,7 +350,8 @@ namespace {
 								Value* args[] = {
 								 	ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("join", "")
+									builder.CreateGlobalStringPtr("join", ""),
+									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							}
@@ -351,17 +378,17 @@ namespace {
 			FunctionType * fty = FunctionType::get(voidTy, false);
 			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_TLE6_init_17h95bac55435556aeeE", fty);
 
-			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy};
+			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy, ptrTy};
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_TLE13_probe_mutex_17h577d96d4fe18762eE", fty);
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_TLE13_probe_mutex_17hc433869c7268e037E", fty);
 
+			paramTypes = {intTy, intTy, ptrTy, ptrTy};		
+			fty = FunctionType::get(voidTy, paramTypes, false);
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_TLE12_probe_func_17h570a958f8c5fee71E", fty);
+			
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_TLE12_probe_func_17h5b59b016fcae8a1bE", fty);
-			
-			paramTypes = {intTy, intTy};		
-			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_TLE16_probe_spawning_17h82c6f5e9c9e32f50E", fty);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_TLE16_probe_spawning_17h4b50cb3eac1f6e47E", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);

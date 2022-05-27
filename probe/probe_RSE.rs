@@ -5,13 +5,12 @@ use std::{
     thread,
     time,
     ffi::{CStr},
-    os::raw::{c_char, c_int, c_void},
+    os::raw::{c_char, c_int},
     fmt,
     convert::TryInto,
     cell::RefCell,
     panic,
     process,
-    slice,
 };
 
 // file stream to log
@@ -31,8 +30,6 @@ extern{
     fn srand(seed: u32);
     fn time(time: *mut i64) -> i64;
     fn rand() -> c_int;
-    fn backtrace(buffer: *mut *mut i32, buffer_size: i32) -> c_int;
-    fn backtrace_symbols(buffer: *mut *mut i32, buffer_size: i32) -> *mut *mut c_char;
 }
 
 thread_local! {
@@ -47,7 +44,6 @@ pub fn _init_(){
         _PROBE_FP = Some(Arc::new(Mutex::new(OpenOptions::new()
                                             .write(true)
                                             .create(true)
-                                            //.append(true)
                                             .open("log")
                                             .unwrap())));
         match OpenOptions::new().read(true).open("struct"){
@@ -67,26 +63,11 @@ pub fn _init_(){
         tid.replace(String::from("1"));
     });
 
-    //this panic hook might change the semantics of the panic hanlder of the target code  
     let ori_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
         ori_hook(panic_info);
         process::exit(1);
     }));
-
-
-    unsafe{
-        let mut buffer: *mut *mut i32 = &mut(std::ptr::null_mut());
-        let cnt = backtrace(buffer, 12);
-        println!("backtrace returned {} stacks", cnt);
-        let strings = backtrace_symbols(buffer, cnt);
-        let v = slice::from_raw_parts(strings, cnt as usize).to_vec();
-        for string in v{
-            println!("{:?}", string);
-            let addr = CStr::from_ptr(string as *const c_char).to_str().unwrap();
-            println!("{}", addr);
-        }
-    }
 }
 
 pub fn _final_(){
@@ -106,7 +87,7 @@ pub fn _final_(){
     }
 }
 
-pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, _lock_var_addr:*mut u64){
+pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, _lock_var_addr:*mut u64, file_path:*const c_char){
     __random_sleep();
     
     unsafe{
@@ -114,25 +95,14 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, _lock_var_
         TID.with(|tid| {
             __write_log(tid.borrow().as_str(), func_num);
             EXE_NODE_ID.with(|exe_node_id|{
-                __record_thread_structure(*exe_node_id.borrow(), (*tid.borrow()).clone(), line, func_num, func_name_str, Some(_lock_var_addr));
+                let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
+                __record_thread_structure(*exe_node_id.borrow(), (*tid.borrow()).clone(), line, /*func_num,*/ func_name_str, Some(_lock_var_addr), Some(file_path_str));
             });
         });
     }
-    unsafe{
-        let mut buffer: *mut *mut i32 = &mut(std::ptr::null_mut());
-        let cnt = backtrace(buffer, 12);
-        println!("MUTEX backtrace returned {} stacks", cnt);
-        let strings = backtrace_symbols(buffer, cnt);
-        let v = slice::from_raw_parts(strings, cnt as usize).to_vec();
-        for string in v{
-            println!("MUTEX {:?}", string);
-            let addr = CStr::from_ptr(string as *const c_char).to_str().unwrap();
-            println!("MUTEX {}", addr);
-        }
-    }
 }
 
-pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
+pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char, file_path:*const c_char){
     __random_sleep();
 
     unsafe{
@@ -140,13 +110,14 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char){
         TID.with(|tid| {
             __write_log(tid.borrow().as_str(), func_num);
             EXE_NODE_ID.with(|exe_node_id|{
-                __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, func_num, func_name_str, None);
+                let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
+                __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, /*func_num,*/ func_name_str, None, Some(file_path_str));
             });
         });
     }
 }
 
-pub fn _probe_spawning_(line:i32, func_num:i32){
+pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
     __random_sleep();
     
     unsafe{
@@ -161,7 +132,8 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
                 *child_id += 1;
 
                 EXE_NODE_ID.with(|exe_node_id|{
-                    __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, func_num, "spawning", None);
+                let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
+                    __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, /*func_num,*/ "spawning", None, Some(file_path_str));
                 });
             })
         });
@@ -185,11 +157,9 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
                     thrd_vec.push(Vec::new());
                 }
 
-                __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, func_num, "spawned", None);
+                __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), line, /*func_num,*/ "spawned", None, None);
             });
         });
-
-        //atexit(_thread_term);
         
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.inc();
@@ -198,31 +168,43 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
 }
 
 /*
-fn _thread_term(){
-    println!("the child thread has termianted successfully");
-}
-*/
-
-/*
     For recording execution structure
 */
 fn __record_thread_structure(
     tid_ind:i32,
     tid:String,
     line_num:i32, 
-    func_num:i32, 
+    //func_num:i32, 
     func_name:&'static str, 
-    var_addr:Option<*const u64>
+    var_addr:Option<*const u64>,
+    file_path:Option<&str>,
 ) {
+    let file_path:String = match file_path {
+        Some(path) => {
+            let mut str_vec:Vec<&str> = path.split("/").collect();
+            let mut i = 0;
+            while i < str_vec.len() {
+                if str_vec[i] == ".." {
+                    str_vec.remove(i);
+                    str_vec.remove(i-1);
+                    i -= 2;
+                }
+                i += 1;
+            }
+            str_vec.join("/")
+        },
+        None => String::from("None"),
+    };
     unsafe{
         if let Some(thrd_vec) = &_PROBE_THRD_EXE{
             let mut thrd_vec = thrd_vec.lock().unwrap();
             thrd_vec[tid_ind as usize].push(_ProbeNode{
                 tid:tid,
                 line_num:line_num,
-                func_num:func_num,
+                //func_num:func_num,
                 func_name:func_name,
                 var_addr:var_addr,
+                file_path:file_path,
             });
         }
     }
@@ -281,19 +263,20 @@ unsafe impl Sync for _ProbeSemaphore {}
 struct _ProbeNode<'a>{
     tid: String,
     line_num:i32,
-    func_num:i32,
+    //func_num:i32,
     func_name:&'a str,
     var_addr:Option<*const u64>,
+    file_path:String,
 }
 impl fmt::Display for _ProbeNode<'_>{
     fn fmt(&self, f: &mut fmt::Formatter<'_>)-> fmt::Result{
         match self.var_addr{
             Some(var_addr) => 
-                write!(f, "tid: {:<8} | func_name:{:<8} | line: {:>4} | func_num: {:>3} | lock_var_addr: {:?}",
-                        self.tid, self.func_name, self.line_num, self.func_num, var_addr),
-            None =>
-                write!(f, "tid: {:<8} | func_name:{:<8} | line: {:>4} | func_num: {:>3} |",
-                        self.tid, self.func_name, self.line_num, self.func_num),
+                write!(f, "tid: {:<8} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}", 
+                            self.tid, self.func_name, var_addr, self.file_path, self.line_num),
+            None => 
+                write!(f, "tid: {:<8} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}", 
+                            self.tid, self.func_name, "None", self.file_path, self.line_num),
         }
     }
 }
