@@ -5,12 +5,13 @@ use std::{
     thread,
     time,
     ffi::{CStr},
-    os::raw::{c_char, c_int},
+    os::raw::{c_char, c_int, c_void},
     fmt,
     convert::TryInto,
     cell::RefCell,
     panic,
     process,
+    slice,
 };
 
 // file stream to log
@@ -30,6 +31,8 @@ extern{
     fn srand(seed: u32);
     fn time(time: *mut i64) -> i64;
     fn rand() -> c_int;
+    fn backtrace(buffer: *mut *mut i32, buffer_size: i32) -> c_int;
+    fn backtrace_symbols(buffer: *mut *mut i32, buffer_size: i32) -> *mut *mut c_char;
 }
 
 thread_local! {
@@ -70,6 +73,20 @@ pub fn _init_(){
         ori_hook(panic_info);
         process::exit(1);
     }));
+
+
+    unsafe{
+        let mut buffer: *mut *mut i32 = &mut(std::ptr::null_mut());
+        let cnt = backtrace(buffer, 12);
+        println!("backtrace returned {} stacks", cnt);
+        let strings = backtrace_symbols(buffer, cnt);
+        let v = slice::from_raw_parts(strings, cnt as usize).to_vec();
+        for string in v{
+            println!("{:?}", string);
+            let addr = CStr::from_ptr(string as *const c_char).to_str().unwrap();
+            println!("{}", addr);
+        }
+    }
 }
 
 pub fn _final_(){
@@ -100,6 +117,18 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, _lock_var_
                 __record_thread_structure(*exe_node_id.borrow(), (*tid.borrow()).clone(), line, func_num, func_name_str, Some(_lock_var_addr));
             });
         });
+    }
+    unsafe{
+        let mut buffer: *mut *mut i32 = &mut(std::ptr::null_mut());
+        let cnt = backtrace(buffer, 12);
+        println!("MUTEX backtrace returned {} stacks", cnt);
+        let strings = backtrace_symbols(buffer, cnt);
+        let v = slice::from_raw_parts(strings, cnt as usize).to_vec();
+        for string in v{
+            println!("MUTEX {:?}", string);
+            let addr = CStr::from_ptr(string as *const c_char).to_str().unwrap();
+            println!("MUTEX {}", addr);
+        }
     }
 }
 
@@ -138,7 +167,6 @@ pub fn _probe_spawning_(line:i32, func_num:i32){
         });
     }
 }
-
 pub fn _probe_spawned_(line:i32, func_num:i32){
     __random_sleep();
 
@@ -261,11 +289,11 @@ impl fmt::Display for _ProbeNode<'_>{
     fn fmt(&self, f: &mut fmt::Formatter<'_>)-> fmt::Result{
         match self.var_addr{
             Some(var_addr) => 
-                write!(f, "tid: {}, line: {:>4}, func: {:>8}, func_num: {:>3}, var: {:?}",
-                        self.tid, self.line_num, self.func_name, self.func_num, var_addr),
+                write!(f, "tid: {:<8} | func_name:{:<8} | line: {:>4} | func_num: {:>3} | lock_var_addr: {:?}",
+                        self.tid, self.func_name, self.line_num, self.func_num, var_addr),
             None =>
-                write!(f, "tid: {}, line: {:>4}, func: {:>8}, func_num: {:>3}, var: None",
-                        self.tid, self.line_num, self.func_name, self.func_num),
+                write!(f, "tid: {:<8} | func_name:{:<8} | line: {:>4} | func_num: {:>3} |",
+                        self.tid, self.func_name, self.line_num, self.func_num),
         }
     }
 }

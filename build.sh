@@ -1,5 +1,5 @@
 export LLVM=/usr/lib/llvm-13
-export TARGET_PROGRAM=../toy_bugs/read_none.rs
+export TARGET_PROGRAM=../toy_bugs/race_btw_func.rs
 
 rm -rf TLE
 mkdir TLE
@@ -27,4 +27,4 @@ unset LLVM
 unset TARGET_PROGRAM
 
 cd ..
-./run_random.sh
+#./run_random.sh

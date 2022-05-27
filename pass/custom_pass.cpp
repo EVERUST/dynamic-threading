@@ -39,7 +39,7 @@ namespace {
 			if(FName.find("core") != string::npos || FName.find("std") != string::npos) {
 				return PreservedAnalyses::all();
 			}
-			*/
+			*/						
 
 			if(!initial) {
 				initialization(F);
