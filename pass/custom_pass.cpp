@@ -137,7 +137,7 @@ namespace {
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
-							else if(funcName.find("_ZN3std6thread5spawn"/*17he91e346dc8743a67E"*/) != std::string::npos){ //spawn
+							else if(funcName.find("_ZN3std6thread5spawn") != std::string::npos){ //spawn
 								IRBuilder<> builder(inv);
 
 								int loc = inv->getDebugLoc().getLine();
@@ -149,7 +149,8 @@ namespace {
 								};
 								builder.CreateCall(p_probe_spawning, args);
 							} 
-							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join"/*17hd223c567ab090f8cE"*/) != std::string::npos){ //join
+							/*
+							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join") != std::string::npos){ //join
 								IRBuilder<> builder(inv);
 
 								int loc = inv->getDebugLoc().getLine();
@@ -162,6 +163,7 @@ namespace {
 								};
 								builder.CreateCall(p_probe_func, args);
 							}
+							*/
 						}
 					} // opcode == Instruction::Invoke 
 				}
@@ -342,7 +344,8 @@ namespace {
 								};
 								builder.CreateCall(p_probe_spawning, args);
 							} 
-							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join"/*17hd223c567ab090f8cE"*/) != std::string::npos){ //join
+							/*
+							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join") != std::string::npos){ //join
 								IRBuilder<> builder(inv);
 
 								int loc = inv->getDebugLoc().getLine();
@@ -355,6 +358,7 @@ namespace {
 								};
 								builder.CreateCall(p_probe_func, args);
 							}
+							*/
 						}
 					} // opcode == Instruction::Invoke 
 				}

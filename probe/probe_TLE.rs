@@ -126,13 +126,18 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
             if let Some(new_thread_id) = &_PROBE_NEW_THREAD_ID {
                 tid.replace(new_thread_id.to_owned());
             }
+            if let Some(sema) = &_PROBE_THRD_SEM{
+                sema.inc();
+            }
 
             __traffic_light(tid.borrow().to_string(), "spawned", line, func_num, None, None);
         });
 
+        /*
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.inc();
         }
+        */
     }
 }
 

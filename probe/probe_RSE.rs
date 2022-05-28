@@ -24,6 +24,7 @@ static mut _PROBE_THRD_EXE:Option<Arc<Mutex<Vec<Vec<_ProbeNode>>>>> = None;
 
 // max sleep duration, unit: ms
 const _MAX_SLEEP: u64 = 10;
+const _SLEEP_SWITCH: u64 = 2;
 
 extern{
     fn atexit(callback: fn()) -> c_int;
@@ -103,10 +104,14 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, _lock_var_
 }
 
 pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char, file_path:*const c_char){
-    __random_sleep();
+    let func_name_str = unsafe {
+        CStr::from_ptr(func_name).to_str().unwrap()
+    };
+    if func_name_str != "join" {
+        __random_sleep();
+    }
 
     unsafe{
-        let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
         TID.with(|tid| {
             __write_log(tid.borrow().as_str(), func_num);
             EXE_NODE_ID.with(|exe_node_id|{
@@ -118,7 +123,8 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char, file_path:*
 }
 
 pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
-    __random_sleep();
+    // spawning + spawned is double sleep without any new permutation added, sleep only at spawned is enough
+    //__random_sleep();
     
     unsafe{
         if let Some(sema) = &_PROBE_THRD_SEM{
@@ -129,6 +135,7 @@ pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
             CHILD_ID.with(|child_id| {
                 let mut child_id = child_id.borrow_mut();
                 _PROBE_NEW_THREAD_ID = Some(format!("{}.{}", &tid.borrow(), child_id));
+                println!("child id set");
                 *child_id += 1;
 
                 EXE_NODE_ID.with(|exe_node_id|{
@@ -140,13 +147,26 @@ pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
     }
 }
 pub fn _probe_spawned_(line:i32, func_num:i32){
-    __random_sleep();
-
-    unsafe{
+    println!("child spawned");
+    unsafe {
         TID.with(|tid| {
             if let Some(new_thread_id) = &_PROBE_NEW_THREAD_ID {
                 tid.replace(new_thread_id.to_owned());
             }
+        });
+        if let Some(sema) = &_PROBE_THRD_SEM{
+            sema.inc();
+        }
+    }
+    __random_sleep();
+
+    unsafe{
+        TID.with(|tid| {
+            /*
+            if let Some(new_thread_id) = &_PROBE_NEW_THREAD_ID {
+                tid.replace(new_thread_id.to_owned());
+            }
+            */
             __write_log(tid.borrow().as_str(), func_num);
 
             EXE_NODE_ID.with(|exe_node_id| {
@@ -161,9 +181,11 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
             });
         });
         
+        /*
         if let Some(sema) = &_PROBE_THRD_SEM{
             sema.inc();
         }
+        */
     }
 }
 
@@ -174,7 +196,6 @@ fn __record_thread_structure(
     tid_ind:i32,
     tid:String,
     line_num:i32, 
-    //func_num:i32, 
     func_name:&'static str, 
     var_addr:Option<*const u64>,
     file_path:Option<&str>,
@@ -224,7 +245,8 @@ fn __random_sleep(){
         let mut seed: i64 = 0;
         srand(time(&mut seed).try_into().unwrap());
         let r:u64 = rand().try_into().unwrap();
-        thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
+        thread::sleep(time::Duration::from_millis((r % _SLEEP_SWITCH) * _MAX_SLEEP));
+        //thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
     }        
 }
 
