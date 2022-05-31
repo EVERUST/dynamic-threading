@@ -3,8 +3,8 @@ export TARGET_HOME_DIR=/home/uja/capstone/read_none
 export TESTING_DIR=$PWD
 export RUSTFLAGS=--emit=llvm-ir
 
-rm -rf TLE
-rm -rf build
+#rm -rf TLE
+#rm -rf build
 mkdir TLE
 mkdir build
 
@@ -38,4 +38,4 @@ $LLVM/bin/clang -o ../TLE/tle -L /usr/lib/rustlib/x86_64-unknown-linux-gnu/lib/ 
 unset LLVM
 
 cd ..
-#./run_random.sh
+./run_random.sh
