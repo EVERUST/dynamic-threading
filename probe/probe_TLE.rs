@@ -140,7 +140,7 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
     }
 }
 
-unsafe fn __write_log(tid:String, func_name:&str, line:i32, var_addr:Option<*const u64>, file_path:Option<&str>){
+unsafe fn __write_log(tid:String, func_num:i32, func_name:&str, line:i32, var_addr:Option<*const u64>, file_path:Option<&str>){
     if let Some(fp_arc) = &_PROBE_FP{
         let mut file_stream = fp_arc.lock().unwrap();
         let file_path:String = match file_path {
@@ -161,11 +161,11 @@ unsafe fn __write_log(tid:String, func_name:&str, line:i32, var_addr:Option<*con
         };
         match var_addr {
             Some(var_addr) => {
-                write!(file_stream, "tid: {:<8} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}\n", 
+                write!(file_stream, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}\n", 
                             tid, func_name, var_addr, file_path, line).expect("write failed\n");
             },
             None => {
-                write!(file_stream, "tid: {:<8} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}\n", 
+                write!(file_stream, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}\n", 
                             tid, func_name, "None", file_path, line).expect("write failed\n");
             },
         }
@@ -175,7 +175,7 @@ unsafe fn __write_log(tid:String, func_name:&str, line:i32, var_addr:Option<*con
 unsafe fn __traffic_light(tid:String, func_name:&str, line:i32, func_num:i32, var_addr:Option<*const u64>, file_path:Option<&str>){
     if let Some(shuffled_order) = &_SHUFFLED_ORDER {
         shuffled_order.wait_for_green_light(tid.clone(), func_num);
-        __write_log(tid, func_name, line, var_addr, file_path);
+        __write_log(tid, func_num, func_name, line, var_addr, file_path);
         shuffled_order.cvar.notify_all();
     }
 }

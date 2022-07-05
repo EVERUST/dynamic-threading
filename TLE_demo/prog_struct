@@ -1,9 +1,0 @@
-tid 1 --------
-	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/capstone/read_none/src/main.rs : 31
-	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/capstone/read_none/src/main.rs : 34
-tid 2 --------
-	tid: 1.1      | func_name: spawned  | lock_var_addr: None       | None : -1
-	tid: 1.1      | func_name: lock     | lock_var_addr: 0xb35d50   | /home/uja/capstone/read_none/src/main.rs : 14
-tid 3 --------
-	tid: 1.2      | func_name: spawned  | lock_var_addr: None       | None : -1
-	tid: 1.2      | func_name: lock     | lock_var_addr: 0xb35d50   | /home/uja/capstone/read_none/src/main.rs : 20

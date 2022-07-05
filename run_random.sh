@@ -46,6 +46,8 @@ do
 		break
 	fi
 	RCNT=$((RCNT+1))
+	rm log
+	rm struct
 done
 
 cp struct ../TLE/prog_struct

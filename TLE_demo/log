@@ -1,8 +1,0 @@
----------------------From _init_---------------------
-tid: 1        | func_name: main
-tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/capstone/read_none/src/main.rs : 31
-tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/capstone/read_none/src/main.rs : 34
-tid: 1.1      | func_name: spawned  | lock_var_addr: None       | None : -1
-tid: 1.2      | func_name: spawned  | lock_var_addr: None       | None : -1
-tid: 1.2      | func_name: lock     | lock_var_addr: 0x1dd3010  | /home/uja/capstone/read_none/src/main.rs : 20
----------------------From _final---------------------
