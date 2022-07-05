@@ -88,7 +88,6 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
             let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
             __traffic_light(tid.borrow().to_string(), func_name_str, line, func_num, Some(lock_var_addr), Some(file_path_str));
         });
-
     }
 }
 

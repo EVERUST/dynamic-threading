@@ -1,0 +1,116 @@
+tid 1 --------
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/capstone/fd/src/walk.rs : 348
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38771d0  | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1233
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38771d0  | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1284
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: spawning | lock_var_addr: None       | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/ignore-0.4.18/src/walk.rs : 1299
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 458
+	tid: 1        | func_name: lock     | lock_var_addr: 0x3879060  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388a670  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388aa20  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388b310  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388b850  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388bca0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388bfb0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388ad90  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388cdc0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388d2d0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388d540  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388d6a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388dbb0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388dee0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388e240  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388c620  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 521
+	tid: 1        | func_name: lock     | lock_var_addr: 0x3885d40  | /home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/sync/wait_group.rs : 105
+	tid: 1        | func_name: lock     | lock_var_addr: 0x38817a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 167
+	tid: 1        | func_name: lock     | lock_var_addr: 0x3879060  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388a670  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388aa20  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388b310  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388b850  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388bca0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388bfb0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388ad90  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388cdc0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388d2d0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+	tid: 1        | func_name: lock     | lock_var_addr: 0x388d540  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 173
+tid 2 --------
+	tid: 1.1      | func_name: spawned  | lock_var_addr: None       | None : -1
+tid 3 --------
+	tid: 1.2      | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.2      | func_name: lock     | lock_var_addr: 0x7ff74800a840 | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/thread_local-1.1.4/src/lib.rs : 249
+	tid: 1.2      | func_name: lock     | lock_var_addr: 0x38829e0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 4 --------
+	tid: 1.3      | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.3      | func_name: lock     | lock_var_addr: 0x3885480  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 5 --------
+	tid: 1.4      | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.4      | func_name: lock     | lock_var_addr: 0x388a770  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 6 --------
+	tid: 1.5      | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.5      | func_name: lock     | lock_var_addr: 0x388b060  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 7 --------
+	tid: 1.6      | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.6      | func_name: lock     | lock_var_addr: 0x388b5a0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 8 --------
+	tid: 1.7      | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.7      | func_name: lock     | lock_var_addr: 0x388b940  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 9 --------
+	tid: 1.8      | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.8      | func_name: lock     | lock_var_addr: 0x388bd00  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 10 --------
+	tid: 1.9      | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.9      | func_name: lock     | lock_var_addr: 0x388b420  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 11 --------
+	tid: 1.10     | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.10     | func_name: lock     | lock_var_addr: 0x388c0e0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 12 --------
+	tid: 1.11     | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.11     | func_name: lock     | lock_var_addr: 0x388c030  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 13 --------
+	tid: 1.12     | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.12     | func_name: lock     | lock_var_addr: 0x388b3f0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 14 --------
+	tid: 1.13     | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.13     | func_name: lock     | lock_var_addr: 0x388d5e0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 15 --------
+	tid: 1.14     | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.14     | func_name: lock     | lock_var_addr: 0x3877c80  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 16 --------
+	tid: 1.15     | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.15     | func_name: lock     | lock_var_addr: 0x388dc30  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 17 --------
+	tid: 1.16     | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.16     | func_name: lock     | lock_var_addr: 0x388df20  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440
+tid 18 --------
+	tid: 1.17     | func_name: spawned  | lock_var_addr: None       | None : -1
+	tid: 1.17     | func_name: lock     | lock_var_addr: 0x388a4e0  | //home/uja/.cargo/registry/src/github.com-1ecc6299db9ec823/crossbeam-utils-0.8.8/src/thread.rs : 440

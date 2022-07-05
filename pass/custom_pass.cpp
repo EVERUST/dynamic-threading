@@ -58,9 +58,10 @@ namespace {
 				for(auto& I : B) {
 					if(I.getOpcode() == Instruction::Call){
 						CallInst * cal = dyn_cast<CallInst>(&I);
-						if(cal->getCalledFunction() != NULL){ // childe thread spawned
+						if(cal->getCalledFunction() != NULL){
 							string funcName = cal->getCalledFunction()->getName().str();
-							if(funcName.find("drop_in_place") == std::string::npos
+							/*
+							if(funcName.find("drop_in_place") == std::string::npos // childe thread spawned
 										&& funcName.find("closure") != std::string::npos 
 										&& funcName.find("main") != std::string::npos){ //main.*closure no dip
 								IRBuilder<> builder(cal);
@@ -70,10 +71,42 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 								};
 								builder.CreateCall(p_probe_spawned, args);
+								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+							}
+							*/
+							if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9100c921955b30a8E") != std::string::npos){ // fd spawn
+								IRBuilder<> builder(cal);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, -1, false),
+									ConstantInt::get(intTy, func_num++, false),
+								};
+								builder.CreateCall(p_probe_spawned, args);
+								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+							}
+							else if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$17h953a9ddec09dc92cE") != std::string::npos){ // fd spawn
+								IRBuilder<> builder(cal);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, -1, false),
+									ConstantInt::get(intTy, func_num++, false),
+								};
+								builder.CreateCall(p_probe_spawned, args);
+								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+							}
+							else if(funcName.find("_ZN15crossbeam_utils6thread19ScopedThreadBuilder5spawn") != std::string::npos){ // crossbeam spawn
+								IRBuilder<> builder(cal);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, -1, false),
+									ConstantInt::get(intTy, func_num++, false),
+								};
+								builder.CreateCall(p_probe_spawned, args);
+								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
 							}
 						}
 					}
-					if(I.getOpcode() == Instruction::Invoke) {
+					else if(I.getOpcode() == Instruction::Invoke) {
 						InvokeInst * inv = dyn_cast<InvokeInst>(&I);
 						if(inv->getDebugLoc().get() != NULL && inv->getCalledFunction() != NULL) {
 							string funcName = inv->getCalledFunction()->getName().str();
@@ -91,6 +124,7 @@ namespace {
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
+								errs() << "added invo lock-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr60drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
 								IRBuilder<> builder(inv);
@@ -110,6 +144,7 @@ namespace {
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
+								errs() << "added invo unlock-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std4sync4mpsc15Sender$LT$T$GT$4send"/*17h222a72a470795b19E*/) != std::string::npos){ //send
 								IRBuilder<> builder(inv);
@@ -123,6 +158,7 @@ namespace {
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
+								errs() << "added invo send-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv"/*17h61c33427f2e2f6c6E*/) != std::string::npos){//recv
 								IRBuilder<> builder(inv);
@@ -136,8 +172,9 @@ namespace {
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
+								errs() << "added invo send-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
-							else if(funcName.find("_ZN3std6thread5spawn") != std::string::npos){ //spawn
+							else if(funcName.find("_ZN3std6thread5spawn") != std::string::npos){ //spawning
 								IRBuilder<> builder(inv);
 
 								int loc = inv->getDebugLoc().getLine();
@@ -148,7 +185,33 @@ namespace {
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_spawning, args);
+								errs() << "added invo spawn-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
+							else if(funcName.find("_ZN15crossbeam_utils6thread5Scope5spawn") != std::string::npos){ // crossbeam spawning
+								IRBuilder<> builder(inv);
+
+								int loc = inv->getDebugLoc().getLine();
+
+								Value* args[] = {
+									ConstantInt::get(intTy, loc, false),
+									ConstantInt::get(intTy, func_num++, false),
+									builder.CreateGlobalStringPtr(filePath, ""),
+								};
+								builder.CreateCall(p_probe_spawning, args);
+								errs() << "added invo spawn-------------------------------------------------------------------------------------------------------------------------------\n";
+							} 
+							/*
+							else if(funcName.find("_ZN3std6thread6Thread3new") != std::string::npos){ //spawned
+								IRBuilder<> builder(inv);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, -1, false),
+									ConstantInt::get(intTy, func_num++, false),
+								};
+								builder.CreateCall(p_probe_spawned, args);
+								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+							} 
+							*/
 							/*
 							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join") != std::string::npos){ //join
 								IRBuilder<> builder(inv);
@@ -185,23 +248,23 @@ namespace {
 			LLVMContext &Ctx = F.getContext();
 
 			FunctionType * fty = FunctionType::get(voidTy, false);
-			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_RSE6_init_17hf804c7106d130da0E", fty);
+			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_RSE6_init_17h4b2a35616602d784E", fty);
 
 			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy, ptrTy};
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_RSE13_probe_mutex_17h6cdfffa70071c68fE", fty);
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_RSE13_probe_mutex_17hebb682d9900a17b3E", fty);
 
 			paramTypes = {intTy, intTy, ptrTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_RSE12_probe_func_17h3bc9976a50f92ca7E", fty);
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_RSE12_probe_func_17h76edebab8a1c6c6aE", fty);
 			
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_RSE16_probe_spawning_17h4a8a64cd08b5677eE", fty);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_RSE16_probe_spawning_17h0bb1a5cc15bc0ecaE", fty);
 
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_RSE15_probe_spawned_17hfa456b2bbcd59460E", fty);
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_RSE15_probe_spawned_17h4b10d4dcbc8435a1E", fty);
 
 			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
 			if(mainFunc != NULL) {
@@ -252,6 +315,39 @@ namespace {
 				for(auto& I : B) {
 					if(I.getOpcode() == Instruction::Call){
 						CallInst * cal = dyn_cast<CallInst>(&I);
+						if(cal->getCalledFunction() != NULL){
+							string funcName = cal->getCalledFunction()->getName().str();
+							if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9100c921955b30a8E") != std::string::npos){ // fd spawn
+								IRBuilder<> builder(cal);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, -1, false),
+									ConstantInt::get(intTy, func_num++, false),
+								};
+								builder.CreateCall(p_probe_spawned, args);
+								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+							}
+							else if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$17h953a9ddec09dc92cE") != std::string::npos){ // fd spawn
+								IRBuilder<> builder(cal);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, -1, false),
+									ConstantInt::get(intTy, func_num++, false),
+								};
+								builder.CreateCall(p_probe_spawned, args);
+								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+							}
+							else if(funcName.find("_ZN15crossbeam_utils6thread19ScopedThreadBuilder5spawn") != std::string::npos){ // crossbeam spawn
+								IRBuilder<> builder(cal);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, -1, false),
+									ConstantInt::get(intTy, func_num++, false),
+								};
+								builder.CreateCall(p_probe_spawned, args);
+								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+							}
+						/*
 						if(cal->getCalledFunction() != NULL){ // childe thread spawned
 							string funcName = cal->getCalledFunction()->getName().str();
 							if(funcName.find("drop_in_place") == std::string::npos
@@ -265,9 +361,10 @@ namespace {
 								};
 								builder.CreateCall(p_probe_spawned, args);
 							}
+						*/
 						}
 					}
-					if(I.getOpcode() == Instruction::Invoke) {
+					else if(I.getOpcode() == Instruction::Invoke) {
 						InvokeInst * inv = dyn_cast<InvokeInst>(&I);
 						if(inv->getDebugLoc().get() != NULL && inv->getCalledFunction() != NULL) {
 							string funcName = inv->getCalledFunction()->getName().str();
@@ -344,6 +441,18 @@ namespace {
 								};
 								builder.CreateCall(p_probe_spawning, args);
 							} 
+							else if(funcName.find("_ZN15crossbeam_utils6thread5Scope5spawn") != std::string::npos){ // crossbeam spawning
+								IRBuilder<> builder(inv);
+
+								int loc = inv->getDebugLoc().getLine();
+
+								Value* args[] = {
+									ConstantInt::get(intTy, loc, false),
+									ConstantInt::get(intTy, func_num++, false),
+									builder.CreateGlobalStringPtr(filePath, ""),
+								};
+								builder.CreateCall(p_probe_spawning, args);
+							} 
 							/*
 							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join") != std::string::npos){ //join
 								IRBuilder<> builder(inv);
@@ -380,23 +489,23 @@ namespace {
 			LLVMContext &Ctx = F.getContext();
 
 			FunctionType * fty = FunctionType::get(voidTy, false);
-			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_TLE6_init_17h95bac55435556aeeE", fty);
+			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_TLE6_init_17h99e5e0e4b42fb836E", fty);
 
 			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy, ptrTy};
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_TLE13_probe_mutex_17hc433869c7268e037E", fty);
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_TLE13_probe_mutex_17h5ce1ad69b9ff6d64E", fty);
 
 			paramTypes = {intTy, intTy, ptrTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_TLE12_probe_func_17h570a958f8c5fee71E", fty);
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_TLE12_probe_func_17h5c538227e75d5879E", fty);
 			
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_TLE16_probe_spawning_17h4b50cb3eac1f6e47E", fty);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_TLE16_probe_spawning_17h3984b93918e248b1E", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_TLE15_probe_spawned_17hfd149ce004885735E", fty);
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_TLE15_probe_spawned_17h984760e15d22effbE", fty);
 
 			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
 			if(mainFunc != NULL) {
