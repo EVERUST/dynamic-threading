@@ -162,11 +162,11 @@ unsafe fn __write_log(tid:String, func_num:i32, func_name:&str, line:i32, var_ad
         match var_addr {
             Some(var_addr) => {
                 write!(file_stream, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}\n", 
-                            tid, func_name, var_addr, file_path, line).expect("write failed\n");
+                            tid, func_num, func_name, var_addr, file_path, line).expect("write failed\n");
             },
             None => {
                 write!(file_stream, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}\n", 
-                            tid, func_name, "None", file_path, line).expect("write failed\n");
+                            tid, func_num, func_name, "None", file_path, line).expect("write failed\n");
             },
         }
     }
@@ -245,8 +245,8 @@ impl _ShuffledOrder {
         waits for the "green light", if the light is set, the function changes the next-should-be-run
         function name, and exit the function. the caller must notify other threads to check undated order.
     */
-    fn wait_for_green_light(&self, tid:String, func_name:i32) {
-        let my_order = format!("{}-{}", tid, func_name).to_owned();
+    fn wait_for_green_light(&self, tid:String, func_num:i32) {
+        let my_order = format!("{}-{}", tid, func_num).to_owned();
 
         let mut guard = self.m.lock().unwrap();
         let mut next_exe_guard = self.next_exe.read().unwrap();

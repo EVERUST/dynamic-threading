@@ -107,6 +107,26 @@ namespace {
 								builder.CreateCall(p_probe_func, args);
 								errs() << "added call recv-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
+							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
+								IRBuilder<> builder(cal);
+
+								int loc = cal->getDebugLoc().getLine();
+								Value * var = cal->getArgOperand(0);
+
+								Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
+								Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
+								Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, loc, false), // line number
+									ConstantInt::get(intTy, func_num++, false),
+									builder.CreateGlobalStringPtr("unlock", ""),
+									builder.CreateBitCast(lock, ptrTy),
+									builder.CreateGlobalStringPtr(filePath, ""),
+								};
+								builder.CreateCall(p_probe_mutex, args);
+								errs() << "added call unlock-------------------------------------------------------------------------------------------------------------------------------\n";
+							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
 								IRBuilder<> builder(cal);
 
@@ -148,6 +168,26 @@ namespace {
 								};
 								builder.CreateCall(p_probe_mutex, args);
 								errs() << "added invo lock-------------------------------------------------------------------------------------------------------------------------------\n";
+							} 
+							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
+								IRBuilder<> builder(inv);
+
+								int loc = inv->getDebugLoc().getLine();
+								Value * var = inv->getArgOperand(0);
+
+								Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
+								Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
+								Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, loc, false), // line number
+									ConstantInt::get(intTy, func_num++, false),
+									builder.CreateGlobalStringPtr("unlock", ""),
+									builder.CreateBitCast(lock, ptrTy),
+									builder.CreateGlobalStringPtr(filePath, ""),
+								};
+								builder.CreateCall(p_probe_mutex, args);
+								errs() << "added invo unlock-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
 								IRBuilder<> builder(inv);
@@ -234,21 +274,6 @@ namespace {
 								builder.CreateCall(p_probe_spawned, args);
 								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
-							*/
-							/*
-							else if(funcName.find("_ZN3std6thread19JoinHandle$LT$T$GT$4join") != std::string::npos){ //join
-								IRBuilder<> builder(inv);
-
-								int loc = inv->getDebugLoc().getLine();
-
-								Value* args[] = {
-								 	ConstantInt::get(intTy, loc, false),
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("join", ""),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_func, args);
-							}
 							*/
 						}
 					} // opcode == Instruction::Invoke 
@@ -396,6 +421,26 @@ namespace {
 								builder.CreateCall(p_probe_func, args);
 								errs() << "added call recv-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
+							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
+								IRBuilder<> builder(cal);
+
+								int loc = cal->getDebugLoc().getLine();
+								Value * var = cal->getArgOperand(0);
+
+								Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
+								Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
+								Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, loc, false), // line number
+									ConstantInt::get(intTy, func_num++, false),
+									builder.CreateGlobalStringPtr("unlock", ""),
+									builder.CreateBitCast(lock, ptrTy),
+									builder.CreateGlobalStringPtr(filePath, ""),
+								};
+								builder.CreateCall(p_probe_mutex, args);
+								errs() << "added call unlock-------------------------------------------------------------------------------------------------------------------------------\n";
+							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
 								IRBuilder<> builder(cal);
 
@@ -437,6 +482,25 @@ namespace {
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
+							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
+								IRBuilder<> builder(inv);
+
+								int loc = inv->getDebugLoc().getLine();
+								Value * var = inv->getArgOperand(0);
+
+								Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
+								Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
+								Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
+
+								Value* args[] = {
+									ConstantInt::get(intTy, loc, false), // line number
+									ConstantInt::get(intTy, func_num++, false),
+									builder.CreateGlobalStringPtr("unlock", ""),
+									builder.CreateBitCast(lock, ptrTy),
+									builder.CreateGlobalStringPtr(filePath, ""),
+								};
+								builder.CreateCall(p_probe_mutex, args);
+							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
 								IRBuilder<> builder(inv);
 
@@ -456,7 +520,7 @@ namespace {
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
-							else if(funcName.find("_ZN3std4sync4mpsc15Sender$LT$T$GT$4send"/*17h222a72a470795b19E*/) != std::string::npos){ //send
+							else if(funcName.find("_ZN3std4sync4mpsc15Sender$LT$T$GT$4send") != std::string::npos){ //send
 								IRBuilder<> builder(inv);
 
 								int loc = inv->getDebugLoc().getLine();
@@ -469,7 +533,7 @@ namespace {
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
-							else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv"/*17h61c33427f2e2f6c6E*/) != std::string::npos){//recv
+							else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv") != std::string::npos){//recv
 								IRBuilder<> builder(inv);
 
 								int loc = inv->getDebugLoc().getLine();
@@ -482,7 +546,7 @@ namespace {
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
-							else if(funcName.find("_ZN3std6thread5spawn"/*17he91e346dc8743a67E"*/) != std::string::npos){ //spawn
+							else if(funcName.find("_ZN3std6thread5spawn") != std::string::npos){ //spawn
 								IRBuilder<> builder(inv);
 
 								int loc = inv->getDebugLoc().getLine();
@@ -490,7 +554,6 @@ namespace {
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									//builder.CreateGlobalStringPtr("spawn", "")
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_spawning, args);
