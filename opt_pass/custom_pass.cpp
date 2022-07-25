@@ -63,7 +63,21 @@ namespace {
 						CallInst * cal = dyn_cast<CallInst>(&I);
 						if(cal->getCalledFunction() != NULL){
 							string funcName = cal->getCalledFunction()->getName().str();
-							if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9100c921955b30a8E") != std::string::npos){ // fd spawn
+							if(cal->getCalledFunction() != NULL){ // childe thread spawned
+								string funcName = cal->getCalledFunction()->getName().str();
+								if(funcName.find("drop_in_place") == std::string::npos
+											&& funcName.find("closure") != std::string::npos 
+											&& funcName.find("main") != std::string::npos){ //main.*closure no dip
+									IRBuilder<> builder(cal);
+
+									Value* args[] = {
+										ConstantInt::get(intTy, -1, false),
+										ConstantInt::get(intTy, func_num++, false),
+									};
+									builder.CreateCall(p_probe_spawned, args);
+								}
+							}
+							else if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9100c921955b30a8E") != std::string::npos){ // fd spawn
 								IRBuilder<> builder(cal);
 
 								Value* args[] = {
@@ -377,6 +391,21 @@ namespace {
 						CallInst * cal = dyn_cast<CallInst>(&I);
 						if(cal->getCalledFunction() != NULL){
 							string funcName = cal->getCalledFunction()->getName().str();
+							if(cal->getCalledFunction() != NULL){ // childe thread spawned
+								string funcName = cal->getCalledFunction()->getName().str();
+								if(funcName.find("drop_in_place") == std::string::npos
+											&& funcName.find("closure") != std::string::npos 
+											&& funcName.find("main") != std::string::npos){ //main.*closure no dip
+									IRBuilder<> builder(cal);
+
+									Value* args[] = {
+										ConstantInt::get(intTy, -1, false),
+										ConstantInt::get(intTy, func_num++, false),
+									};
+									builder.CreateCall(p_probe_spawned, args);
+								}
+							}
+							else 
 							if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9100c921955b30a8E") != std::string::npos){ // fd spawn
 								IRBuilder<> builder(cal);
 

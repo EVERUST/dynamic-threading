@@ -10,7 +10,8 @@ echo -e -n "\r\e[kNOW TESTING   "
 export PRIVILEGED_THREAD=${myArray[$ARR_IND]}
 while :
 do
-	./rse . '../' >& prog_out
+	#./rse . '../' >& prog_out
+	./rse >& prog_out
 	exit_status=$?
 
 	if [ $exit_status -eq 0 ];

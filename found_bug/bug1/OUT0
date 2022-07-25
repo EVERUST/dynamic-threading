@@ -1,3 +1,0 @@
-***** INITIATING PROBE FUNCTIONS *****
-thread '<unnamed>' panicked at 'internal error: entered unreachable code', /rustc/43347397f7c5ca9a670a3bb3890c7187e24a52ab/library/std/src/sync/mpsc/mod.rs:1176:43
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
