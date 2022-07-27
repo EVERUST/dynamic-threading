@@ -1,6 +1,5 @@
 export LLVM=/usr/lib/llvm-13
-#export TARGET_HOME_DIR=/home/uja/capstone/bug_case/read_none
-export TARGET_HOME_DIR=/home/uja/capstone/fd
+export TARGET_HOME_DIR=/home/uja/capstone/test_target/fd
 export TESTING_DIR=$PWD
 export RUSTFLAGS=--emit=llvm-ir
 
