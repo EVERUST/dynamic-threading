@@ -130,13 +130,8 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
             }
 
             __traffic_light(tid.borrow().to_string(), "spawned", line, func_num, None, None);
-        });
 
-        /*
-        if let Some(sema) = &_PROBE_THRD_SEM{
-            sema.inc();
-        }
-        */
+        });
     }
 }
 
@@ -174,9 +169,22 @@ unsafe fn __write_log(tid:String, func_num:i32, func_name:&str, line:i32, var_ad
 
 unsafe fn __traffic_light(tid:String, func_name:&str, line:i32, func_num:i32, var_addr:Option<*const u64>, file_path:Option<&str>){
     if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-        shuffled_order.wait_for_green_light(tid.clone(), func_num);
+        let my_order = format!("{}-{}", tid, func_num);
+        let mut next_exe_guard = shuffled_order.order_queue.lock().unwrap();
+
+        println!("\tentered : {}", my_order);
+        while *next_exe_guard.front().unwrap() != my_order {
+			println!("\t{} sleeping", my_order);
+            next_exe_guard = shuffled_order.cvar.wait(next_exe_guard).unwrap();
+            println!("\twaiting : {}, next : {}", my_order, *next_exe_guard.front().unwrap());
+        }
+
+        _ = next_exe_guard.pop_front();
+
         __write_log(tid, func_num, func_name, line, var_addr, file_path);
-        shuffled_order.cvar.notify_all();
+        shuffled_order.cvar.notify_one();
+        println!("curr : {}, next : {}, addr : {:p}, cvar : {:p}", my_order, *next_exe_guard.front().unwrap(), &_SHUFFLED_ORDER, &shuffled_order.cvar);
+        drop(next_exe_guard);
     }
 }
 
@@ -215,10 +223,8 @@ unsafe impl Send for _ProbeSemaphore {}
 unsafe impl Sync for _ProbeSemaphore {}
 
 struct _ShuffledOrder {
-    order:Mutex<VecDeque<String>>,
-    next_exe:RwLock<String>,
     cvar:Condvar,
-    m:Mutex<()>,
+    order_queue:Mutex<VecDeque<String>>,
 }
 
 impl _ShuffledOrder {
@@ -231,44 +237,10 @@ impl _ShuffledOrder {
             }
             order.push_back(String::from(str_order));
         }
-        let next_exe_init = order.pop_front().unwrap();
 
         _ShuffledOrder{
-            order:Mutex::new(order),
-            next_exe:RwLock::new(next_exe_init),
             cvar: Condvar::new(),
-            m: Mutex::new(()),
+            order_queue:Mutex::new(order),
         }
-    }
-
-    /*
-        waits for the "green light", if the light is set, the function changes the next-should-be-run
-        function name, and exit the function. the caller must notify other threads to check undated order.
-    */
-    fn wait_for_green_light(&self, tid:String, func_num:i32) {
-        let my_order = format!("{}-{}", tid, func_num).to_owned();
-
-        let mut guard = self.m.lock().unwrap();
-        let mut next_exe_guard = self.next_exe.read().unwrap();
-
-        while *next_exe_guard != my_order {
-            drop(next_exe_guard);
-            guard = self.cvar.wait(guard).unwrap();
-            next_exe_guard = self.next_exe.read().unwrap();
-        }
-        // to avoid read -> write deadlock
-        drop(next_exe_guard);
-
-        // trying to prevent the race between previous thread and current thread
-        thread::sleep(Duration::from_millis(20));
-
-		let mut order_queue = self.order.lock().unwrap();
-		match order_queue.pop_front(){
-			Some(next_exe_num) => {
-				let mut w = self.next_exe.write().unwrap();
-				*w = next_exe_num;
-			},
-			None => { /* it was the last of the vecdeque */ },
-		}
     }
 }
