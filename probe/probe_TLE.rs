@@ -1,21 +1,22 @@
 use std::{
-    sync::{ Arc, Condvar, Mutex, RwLock, },
+    sync::{ Arc, Condvar, Mutex, },
     fs::{OpenOptions, File},
     io::prelude::*,
-    thread,
     ffi::CStr,
     os::raw::{c_char, c_int},
     collections::VecDeque,
-    time::Duration,
     cell::RefCell,
+    time::Duration,
+    thread,
     panic,
     process,
 };
 
 // file stream to log
-static mut _PROBE_FP:Option<Arc<Mutex<File>>> = None;
+// static mut _PROBE_FP:Option<Arc<Mutex<File>>> = None;
+static mut _PROBE_FP:Option<File> = None;
 // semaphore for allowing only one spawning thread at a time
-static mut _PROBE_THRD_SEM:Option<Arc<_ProbeSemaphore>> = None;
+static mut _PROBE_THRD_SEM:Option<Arc<Mutex<_ProbeSemaphore>>> = None;
 // for keeping track of parent thread id
 static mut _PROBE_NEW_THREAD_ID:Option<String> = None;
 // the input order file
@@ -28,24 +29,10 @@ extern {
 thread_local! {
     static TID:RefCell<String> = RefCell::new(String::from("none"));
     static CHILD_ID:RefCell<i32> = RefCell::new(1);
+    static SPAWN_SEMA:RefCell<Option<Arc<Mutex<_ProbeSemaphore>>>> = RefCell::new(None);
 }
 
 pub fn _init_(){
-    unsafe{
-        _PROBE_THRD_SEM = Some(Arc::new(_ProbeSemaphore::new(1))); // allow only 1 thread
-        _PROBE_FP = Some(Arc::new(Mutex::new(OpenOptions::new()
-                                            .write(true)
-                                            .create(true)
-                                            //.append(true)
-                                            .open("log")
-                                            .unwrap())));
-        if let Some(fp_arc) = &_PROBE_FP{
-            let mut file_stream = fp_arc.lock().unwrap();
-            write!(file_stream, "---------------------From _init_---------------------\n").expect("write failed\n");
-            write!(file_stream, "tid: 1        | func_name: main\n").expect("write failed\n"); 
-        }
-        atexit(_final_);
-    }
     match OpenOptions::new().read(true).open("scenario") {
         Ok(mut shuffle_stream) => {
             let mut shuffle_order_str = String::new();
@@ -60,11 +47,22 @@ pub fn _init_(){
         }
     }
 
-    TID.with(|tid|{
-        tid.replace(String::from("1"));
-    });
+    let mut file_stream = OpenOptions::new().write(true).create(true).open("log").unwrap();
+    write!(file_stream, "---------------------From _init_---------------------\n").expect("write failed\n");
+    write!(file_stream, "tid: 1        | func_name: main\n").expect("write failed\n"); 
 
-    //this panic hook might change the semantics of the panic hanlder of the target code  
+    let sema_guard = Arc::new(Mutex::new(_ProbeSemaphore::new(1)));
+
+    SPAWN_SEMA.with(|sema| { sema.replace(Some(Arc::clone(&sema_guard))); });
+
+    TID.with(|tid|{ tid.replace(String::from("1")); });
+
+    unsafe{
+        _PROBE_FP = Some(file_stream);
+        _PROBE_THRD_SEM = Some(sema_guard);
+        atexit(_final_);
+    }
+
     let ori_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
         ori_hook(panic_info);
@@ -74,8 +72,8 @@ pub fn _init_(){
 
 pub fn _final_(){
     unsafe{
-        if let Some(fp_arc) = &_PROBE_FP{
-            let mut file_stream = fp_arc.lock().unwrap();
+        if let Some(mut file_stream) = &_PROBE_FP{
+            //let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "---------------------From _final---------------------\n").expect("write failed\n");
         }
     }
@@ -103,46 +101,46 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char, file_path:*
 
 pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
     unsafe{
-        if let Some(sema) = &_PROBE_THRD_SEM{
-            sema.dec();
-        }
-        TID.with(|tid| {
-            CHILD_ID.with(|child_id| {
-                let mut child_id = child_id.borrow_mut();
-                _PROBE_NEW_THREAD_ID= Some(format!("{}.{}", &tid.borrow(), child_id));
-                *child_id += 1;
+        if let Some(sema_guard) = &_PROBE_THRD_SEM{
+            let mut sema = sema_guard.lock().unwrap();
+            TID.with(|tid| {
+                CHILD_ID.with(|child_id| {
+                    let mut child_id = child_id.borrow_mut();
+                    // _PROBE_NEW_THREAD_ID= Some(format!("{}.{}", &tid.borrow(), child_id));
+                    sema.dec();
+                    sema.set_tid(format!("{}.{}", &tid.borrow(), child_id));
+                    *child_id += 1;
+                });
+                let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
+                __traffic_light(tid.borrow().to_string(), "spawning", line, func_num, None, Some(file_path_str));
             });
-
-            let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
-            __traffic_light(tid.borrow().to_string(), "spawning", line, func_num, None, Some(file_path_str));
-        });
+        }
     }
 }
 
 pub fn _probe_spawned_(line:i32, func_num:i32){
     unsafe{
         TID.with(|tid| {
+            /*
             if let Some(new_thread_id) = &_PROBE_NEW_THREAD_ID {
                 tid.replace(new_thread_id.to_owned());
             }
-            if let Some(sema) = &_PROBE_THRD_SEM{
+            */
+            if let Some(sema_guard) = &_PROBE_THRD_SEM{
+                let sema = sema_guard.lock().unwrap();
+                tid.replace(sema.get_tid().to_string());
                 sema.inc();
             }
 
             __traffic_light(tid.borrow().to_string(), "spawned", line, func_num, None, None);
-        });
 
-        /*
-        if let Some(sema) = &_PROBE_THRD_SEM{
-            sema.inc();
-        }
-        */
+        });
     }
 }
 
 unsafe fn __write_log(tid:String, func_num:i32, func_name:&str, line:i32, var_addr:Option<*const u64>, file_path:Option<&str>){
-    if let Some(fp_arc) = &_PROBE_FP{
-        let mut file_stream = fp_arc.lock().unwrap();
+    if let Some(file_stream) = &_PROBE_FP{
+        // let mut file_stream = fp_arc.lock().unwrap();
         let file_path:String = match file_path {
             Some(path) => {
                 let mut str_vec:Vec<&str> = path.split("/").collect();
@@ -174,9 +172,22 @@ unsafe fn __write_log(tid:String, func_num:i32, func_name:&str, line:i32, var_ad
 
 unsafe fn __traffic_light(tid:String, func_name:&str, line:i32, func_num:i32, var_addr:Option<*const u64>, file_path:Option<&str>){
     if let Some(shuffled_order) = &_SHUFFLED_ORDER {
-        shuffled_order.wait_for_green_light(tid.clone(), func_num);
+        let my_order = format!("{}-{}", tid, func_num);
+        let mut next_exe_guard = shuffled_order.order_queue.lock().unwrap();
+
+        println!("\t{:?} : entered : {}", thread::current().id(), my_order);
+        while *next_exe_guard.front().unwrap() != my_order {
+			println!("\t{:?} : {} sleeping for 100", thread::current().id(), my_order);
+            (next_exe_guard, _) = shuffled_order.cvar.wait_timeout(next_exe_guard, Duration::from_millis(100)).unwrap();
+            println!("\t{:?} : waiting : {}, next : {}", thread::current().id(), my_order, *next_exe_guard.front().unwrap());
+        }
+
+        _ = next_exe_guard.pop_front();
+
         __write_log(tid, func_num, func_name, line, var_addr, file_path);
-        shuffled_order.cvar.notify_all();
+        shuffled_order.cvar.notify_one();
+        println!("{:?} : curr : {}, next : {}, addr : {:p}, cvar : {:p}", thread::current().id(), my_order, *next_exe_guard.front().unwrap(), &_SHUFFLED_ORDER, &shuffled_order.cvar);
+        drop(next_exe_guard);
     }
 }
 
@@ -188,12 +199,14 @@ unsafe fn __traffic_light(tid:String, func_name:&str, line:i32, func_num:i32, va
 struct _ProbeSemaphore {
     mutex: Mutex<i32>,
     cvar: Condvar,
+    child_thread_id: String,
 }
 impl _ProbeSemaphore {
     fn new(count: i32) -> Self {
         _ProbeSemaphore {
             mutex: Mutex::new(count),
             cvar: Condvar::new(),
+            child_thread_id: String::from("none"),
         }
     }
     fn dec(&self) {
@@ -210,15 +223,19 @@ impl _ProbeSemaphore {
             self.cvar.notify_one();
         }
     }
+    fn get_tid(&self) -> &str {
+        self.child_thread_id.as_str()
+    }
+    fn set_tid(&mut self, new_tid: String) {
+        self.child_thread_id = new_tid;
+    }
 }
 unsafe impl Send for _ProbeSemaphore {}
 unsafe impl Sync for _ProbeSemaphore {}
 
 struct _ShuffledOrder {
-    order:Mutex<VecDeque<String>>,
-    next_exe:RwLock<String>,
     cvar:Condvar,
-    m:Mutex<()>,
+    order_queue:Mutex<VecDeque<String>>,
 }
 
 impl _ShuffledOrder {
@@ -231,44 +248,10 @@ impl _ShuffledOrder {
             }
             order.push_back(String::from(str_order));
         }
-        let next_exe_init = order.pop_front().unwrap();
 
         _ShuffledOrder{
-            order:Mutex::new(order),
-            next_exe:RwLock::new(next_exe_init),
             cvar: Condvar::new(),
-            m: Mutex::new(()),
+            order_queue:Mutex::new(order),
         }
-    }
-
-    /*
-        waits for the "green light", if the light is set, the function changes the next-should-be-run
-        function name, and exit the function. the caller must notify other threads to check undated order.
-    */
-    fn wait_for_green_light(&self, tid:String, func_num:i32) {
-        let my_order = format!("{}-{}", tid, func_num).to_owned();
-
-        let mut guard = self.m.lock().unwrap();
-        let mut next_exe_guard = self.next_exe.read().unwrap();
-
-        while *next_exe_guard != my_order {
-            drop(next_exe_guard);
-            guard = self.cvar.wait(guard).unwrap();
-            next_exe_guard = self.next_exe.read().unwrap();
-        }
-        // to avoid read -> write deadlock
-        drop(next_exe_guard);
-
-        // trying to prevent the race between previous thread and current thread
-        thread::sleep(Duration::from_millis(20));
-
-		let mut order_queue = self.order.lock().unwrap();
-		match order_queue.pop_front(){
-			Some(next_exe_num) => {
-				let mut w = self.next_exe.write().unwrap();
-				*w = next_exe_num;
-			},
-			None => { /* it was the last of the vecdeque */ },
-		}
     }
 }
