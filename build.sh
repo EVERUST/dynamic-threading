@@ -1,5 +1,6 @@
 export LLVM=/usr/lib/llvm-13
 <<<<<<< HEAD
+<<<<<<< HEAD
 export TARGET_HOME_DIR=/home/uja/capstone/TEST_TARGET_PRGRAM
 export TESTING_DIR=$PWD
 export RUSTFLAGS=--emit=llvm-ir
@@ -34,7 +35,6 @@ done
 rustc --crate-type=lib --emit=obj -o probe_rse.o ../probe/probe_RSE.rs
 rustc --crate-type=lib --emit=obj -o probe_err.o ../probe/probe_ERR.rs
 
-#fd
 $LLVM/bin/clang -o rse NIGHTLY_LIB/libstd-91db243dd05c003b.so -lpthread -pthread -lrt -lm target_rse_*.ll probe_rse.o ../include/libjemalloc_pic.a -ldl
 $LLVM/bin/clang -o ../TLE/tle NIGHTLY_LIB/libstd-91db243dd05c003b.so -lpthread -pthread -lrt -lm target_err_*.ll probe_err.o ../include/libjemalloc_pic.a -ldl
 
@@ -46,4 +46,5 @@ unset RUSTFLAGS
 unset NIGHTLY_LIB
 
 cd ..
+#rm *.ll
 #./run_random.sh
