@@ -603,23 +603,23 @@ namespace {
 			LLVMContext &Ctx = F.getContext();
 
 			FunctionType * fty = FunctionType::get(voidTy, false);
-			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_TLE6_init_17h99e5e0e4b42fb836E", fty);
+			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_ERR6_init_17h620290c0f842cc7eE", fty);
 
 			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy, ptrTy};
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_TLE13_probe_mutex_17h5ce1ad69b9ff6d64E", fty);
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_ERR13_probe_mutex_17h1d42b4d2bb9896abE", fty);
 
 			paramTypes = {intTy, intTy, ptrTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_TLE12_probe_func_17h5c538227e75d5879E", fty);
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_ERR12_probe_func_17h370a3cccf4e0c069E", fty);
 			
 			paramTypes = {intTy, intTy, ptrTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_TLE16_probe_spawning_17h3984b93918e248b1E", fty);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_ERR16_probe_spawning_17h1f3e426fcd70b69fE", fty);
 			
 			paramTypes = {intTy, intTy};		
 			fty = FunctionType::get(voidTy, paramTypes, false);
-			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_TLE15_probe_spawned_17h984760e15d22effbE", fty);
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_ERR15_probe_spawned_17h5319457ca87fec88E", fty);
 
 			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
 			if(mainFunc != NULL) {
