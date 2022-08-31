@@ -14,6 +14,7 @@ use std::{
     env,
 };
 
+/*
 // file stream to log
 static mut _PROBE_FP:Option<Arc<Mutex<File>>> = None;
 // semaphore for allowing only one spawning thread at a time
@@ -24,6 +25,13 @@ static mut _PROBE_NEW_THREAD_ID:Option<String> = None;
 static mut _PROBE_THRD_EXE:Option<Arc<Mutex<Vec<Vec<_ProbeNode>>>>> = None;
 // one thread that does not sleep
 static mut _PRIVILEGED_THREAD:Option<String> = None;
+*/
+
+// semaphore used to keep track of parent-child thread relationship
+static mut _THREAD__SPAWN_SEM:Option<Arc<(Mutex<_ProbeSpawnSema>, Condvar)>> = None;
+// mutex and scenario to sequentially execute threads
+static mut _REPLAY__SCENARIO:Option<Arc<(Mutex<_ReplayDirector>, Condvar)>> = None;
+extern { fn atexit(callback: fn()) -> c_int; }
 
 // max sleep duration, unit: ms
 const _MAX_SLEEP: u64 = 10;
@@ -63,6 +71,9 @@ pub fn _init_(){
         }
         atexit(_final_);
     }
+
+    unsafe { _THREAD__SPAWN_SEM = Some(Arc::new((Mutex::new(_ProbeSpawnSema::new(1)), Condvar::new()))); }
+
     EXE_NODE_ID.with(|exe_node_id|{
         exe_node_id.replace(0);
     });
@@ -230,7 +241,6 @@ fn __record_scenario(tid:&str, func_num:i32){
         if let Some(fp_arc) = &_PROBE_FP {
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "{}-{}+", tid, func_num).expect("write failed\n");
-            println!("this is {:?} recording {}-{}", thread::current().id(), tid, func_num);
         }
     }
 }
@@ -261,6 +271,34 @@ fn __random_sleep(){
     }        
 }
 
+/*
+* the lock should be held before calling any of the methods except for new.
+*/
+struct _ProbeSpawnSema {
+    count: i32,
+    child_thread_id: String,
+}
+
+impl _ProbeSpawnSema {
+    fn new(count: i32) -> Self {
+        _ProbeSpawnSema {
+            count:count,
+            child_thread_id:String::from("none"),
+        }
+    }
+
+    fn get_tid(&self) -> String { self.child_thread_id.clone() }
+
+    fn set_tid(&mut self, new_tid: String) { self.child_thread_id = new_tid; }
+
+    fn get_count(&self) -> i32 { self.count }
+
+    fn dec_count(&mut self) { self.count -= 1; }
+
+    fn inc_count(&mut self) { self.count += 1; }
+}
+
+/*
 struct _ProbeSemaphore {
     mutex: Mutex<i32>,
     cvar: Condvar,
@@ -289,6 +327,7 @@ impl _ProbeSemaphore {
 }
 unsafe impl Send for _ProbeSemaphore {}
 unsafe impl Sync for _ProbeSemaphore {}
+*/
 
 /*
     data structure for keeping the execution order

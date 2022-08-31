@@ -23,16 +23,124 @@ namespace {
 
 	struct RSE_pass : PassInfoMixin<RSE_pass> {
 
-		bool initial = false;
+		bool initial = false, is_rse = false;
 		int func_num = 0;
+		string file_path;
 
 		Type *intTy, *ptrTy, *voidTy, *boolTy;
+		FunctionCallee p_init, p_probe_mutex, p_probe_func, p_probe_spawning, p_probe_spawned;
 
-		FunctionCallee p_init;
-		FunctionCallee p_probe_mutex;
-		FunctionCallee p_probe_func;
-		FunctionCallee p_probe_spawning;
-		FunctionCallee p_probe_spawned;
+
+		RSE_pass(bool is_rse){
+			is_rse = is_rse;
+		}
+
+		/** ----------------------------call------------------------------------- **/
+		void insert_spawned(CallInst* cal){
+			IRBuilder<> builder(cal);
+			Value* args[] = {
+				ConstantInt::get(intTy, -1, false),
+				ConstantInt::get(intTy, func_num++, false),
+			};
+			builder.CreateCall(p_probe_spawned, args);
+		}
+
+		void insert_func(CallInst* cal, string func_name){
+			IRBuilder<> builder(cal);
+			Value* args[] = {
+				ConstantInt::get(intTy, cal->getDebugLoc().getLine(), false),
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr(func_name, ""),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_func, args);
+		}
+
+		void insert_unlock(CallInst* cal){
+			IRBuilder<> builder(cal);
+
+			Value * var = cal->getArgOperand(0);
+			Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
+			Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
+			Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, cal->getDebugLoc().getLine(), false), 
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr("unlock", ""),
+				builder.CreateBitCast(lock, ptrTy),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_mutex, args);
+		}
+		/** ----------------------------invoke------------------------------------- **/
+
+		void insert_spawning(InvokeInst* inv){
+			IRBuilder<> builder(inv);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false),
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_spawning, args);
+		}
+
+		void insert_spawned(InvokeInst* inv){
+			IRBuilder<> builder(inv);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, -1, false),
+				ConstantInt::get(intTy, func_num++, false),
+			};
+			builder.CreateCall(p_probe_spawned, args);
+		}
+
+		void insert_lock(InvokeInst* inv){
+			IRBuilder<> builder(inv);
+
+			Value * var = inv->getArgOperand(1);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false), // line number
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr("lock", ""),
+				builder.CreateBitCast(var, ptrTy),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_mutex, args);
+		}
+
+		void insert_unlock(InvokeInst* inv){
+			IRBuilder<> builder(inv);
+
+			Value * var = inv->getArgOperand(0);
+			Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
+			Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
+			Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false), // line number
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr("unlock", ""),
+				builder.CreateBitCast(lock, ptrTy),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_mutex, args);
+		}
+		
+		void insert_func(InvokeInst* inv, string func_name){
+			IRBuilder<> builder(inv);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false),
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr(func_name, ""),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_func, args);
+		}
+
 
 		// Main entry point, takes IR unit to run the pass on (&F) and the
 		// corresponding pass manager (to be queried if need be)
@@ -55,7 +163,7 @@ namespace {
 					}
 				}
 			}
-			string filePath = directory + "/" + file;
+			file_path = directory + "/" + file;
 
 			for(auto& B : F) {
 				for(auto& I : B) {
@@ -68,227 +176,80 @@ namespace {
 								if(funcName.find("drop_in_place") == std::string::npos
 											&& funcName.find("closure") != std::string::npos 
 											&& funcName.find("main") != std::string::npos){ //main.*closure no dip
-									IRBuilder<> builder(cal);
-
-									Value* args[] = {
-										ConstantInt::get(intTy, -1, false),
-										ConstantInt::get(intTy, func_num++, false),
-									};
-									builder.CreateCall(p_probe_spawned, args);
+									insert_spawned(cal);
 								}
 							}
 							else if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9100c921955b30a8E") != std::string::npos){ // fd spawn
-								IRBuilder<> builder(cal);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, -1, false),
-									ConstantInt::get(intTy, func_num++, false),
-								};
-								builder.CreateCall(p_probe_spawned, args);
-								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_spawned(cal);
+								errs() << "added call main-----------------------------------------------\n";
 							}
 							else if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$17h953a9ddec09dc92cE") != std::string::npos){ // fd spawn
-								IRBuilder<> builder(cal);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, -1, false),
-									ConstantInt::get(intTy, func_num++, false),
-								};
-								builder.CreateCall(p_probe_spawned, args);
-								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_spawned(cal);
+								errs() << "added call main-----------------------------------------------\n";
+							}
+							else if(funcName.find("_ZN6ignore4walk12WalkParallel5visit28_$u7b$$u7b$closure") != std::string::npos){ // ignore visit spawned
+								insert_spawned(cal);
+								errs() << "added call main-----------------------------------------------\n";
 							}
 							else if(funcName.find("_ZN15crossbeam_utils6thread19ScopedThreadBuilder5spawn") != std::string::npos){ // crossbeam spawn
-								IRBuilder<> builder(cal);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, -1, false),
-									ConstantInt::get(intTy, func_num++, false),
-								};
-								builder.CreateCall(p_probe_spawned, args);
-								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+							 	insert_spawned(cal);
+								errs() << "added call main-----------------------------------------------\n";
 							}
 							else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv") != std::string::npos){//recv
-								IRBuilder<> builder(cal);
-
-								int loc = cal->getDebugLoc().getLine();
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false),
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("recv", ""),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_func, args);
-								errs() << "added call recv-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_func(cal, "recv");
+								errs() << "added call recv-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
-								IRBuilder<> builder(cal);
-
-								int loc = cal->getDebugLoc().getLine();
-								Value * var = cal->getArgOperand(0);
-
-								Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
-								Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
-								Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false), // line number
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("unlock", ""),
-									builder.CreateBitCast(lock, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_mutex, args);
-								errs() << "added call unlock-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_unlock(cal);
+								errs() << "added call unlock-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
-								IRBuilder<> builder(cal);
-
-								int loc = cal->getDebugLoc().getLine();
-								Value * var = cal->getArgOperand(0);
-
-								Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
-								Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
-								Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false), // line number
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("unlock", ""),
-									builder.CreateBitCast(lock, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_mutex, args);
-								errs() << "added call unlock-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_unlock(cal);
+								errs() << "added call unlock-----------------------------------------------\n";
 							} 
 						}
 					}
+					// TODO : this has getArgOperand(1), but other unlock functions above has getArgOperand(0)
 					else if(I.getOpcode() == Instruction::Invoke) {
 						InvokeInst * inv = dyn_cast<InvokeInst>(&I);
 						if(inv->getDebugLoc().get() != NULL && inv->getCalledFunction() != NULL) {
 							string funcName = inv->getCalledFunction()->getName().str();
 							if(funcName.find("_ZN3std4sync5mutex14Mutex$LT$T$GT$4lock") != std::string::npos) { // lock
-								IRBuilder<> builder(inv);
-
-								int loc = inv->getDebugLoc().getLine();
-								Value * var = inv->getArgOperand(1);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false), // line number
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("lock", ""),
-									builder.CreateBitCast(var, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_mutex, args);
-								errs() << "added invo lock-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_lock(inv);
+								errs() << "added invo lock-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
-								IRBuilder<> builder(inv);
-
-								int loc = inv->getDebugLoc().getLine();
-								Value * var = inv->getArgOperand(0);
-
-								Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
-								Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
-								Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false), // line number
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("unlock", ""),
-									builder.CreateBitCast(lock, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_mutex, args);
-								errs() << "added invo unlock-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_unlock(inv);
+								errs() << "added invo unlock-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
-								IRBuilder<> builder(inv);
-
-								int loc = inv->getDebugLoc().getLine();
-								Value * var = inv->getArgOperand(0);
-
-								Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
-								Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
-								Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false), // line number
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("unlock", ""),
-									builder.CreateBitCast(lock, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_mutex, args);
-								errs() << "added invo unlock-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_unlock(inv);
+								errs() << "added invo unlock-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std4sync4mpsc15Sender$LT$T$GT$4send") != std::string::npos){ //send
-								IRBuilder<> builder(inv);
-
-								int loc = inv->getDebugLoc().getLine();
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false),
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("send", ""),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_func, args);
-								errs() << "added invo send-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_func(inv, "send");
+								errs() << "added invo send-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv") != std::string::npos){//recv
-								IRBuilder<> builder(inv);
-
-								int loc = inv->getDebugLoc().getLine();
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false),
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr("recv", ""),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_func, args);
-								errs() << "added invo recv-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_func(inv, "recv");
+								errs() << "added invo recv-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std6thread5spawn") != std::string::npos){ //spawning
-								IRBuilder<> builder(inv);
-
-								int loc = inv->getDebugLoc().getLine();
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false),
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_spawning, args);
-								errs() << "added invo spawn-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_spawning(inv);
+								errs() << "added invo spawn-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN15crossbeam_utils6thread5Scope5spawn") != std::string::npos){ // crossbeam spawning
-								IRBuilder<> builder(inv);
-
-								int loc = inv->getDebugLoc().getLine();
-
-								Value* args[] = {
-									ConstantInt::get(intTy, loc, false),
-									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr(filePath, ""),
-								};
-								builder.CreateCall(p_probe_spawning, args);
-								errs() << "added invo spawn-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_spawning(inv);
+								errs() << "added invo spawn-----------------------------------------------\n";
 							} 
-							/*
+							else if(funcName.find("_ZN6ignore4walk12WalkParallel5visit28_$u7b$$u7b$closure") != std::string::npos){ // ignore visit spawned
+								insert_spawned(inv);
+								errs() << "added call main-----------------------------------------------\n";
+							} 
 							else if(funcName.find("_ZN3std6thread6Thread3new") != std::string::npos){ //spawned
-								IRBuilder<> builder(inv);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, -1, false),
-									ConstantInt::get(intTy, func_num++, false),
-								};
-								builder.CreateCall(p_probe_spawned, args);
-								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
+								insert_spawned(inv);
+								errs() << "added call main-----------------------------------------------\n";
 							} 
-							*/
 						}
 					} // opcode == Instruction::Invoke 
 				}
@@ -353,14 +314,118 @@ namespace {
 
 		bool initial = false;
 		int func_num = 0;
+		string file_path;
 
 		Type *intTy, *ptrTy, *voidTy, *boolTy;
+		FunctionCallee p_init, p_probe_mutex, p_probe_func, p_probe_spawning, p_probe_spawned;
 
-		FunctionCallee p_init;
-		FunctionCallee p_probe_mutex;
-		FunctionCallee p_probe_func;
-		FunctionCallee p_probe_spawning;
-		FunctionCallee p_probe_spawned;
+		/** ----------------------------call------------------------------------- **/
+		void insert_spawned(CallInst* cal){
+			IRBuilder<> builder(cal);
+			Value* args[] = {
+				ConstantInt::get(intTy, -1, false),
+				ConstantInt::get(intTy, func_num++, false),
+			};
+			builder.CreateCall(p_probe_spawned, args);
+		}
+
+		void insert_func(CallInst* cal, string func_name){
+			IRBuilder<> builder(cal);
+			Value* args[] = {
+				ConstantInt::get(intTy, cal->getDebugLoc().getLine(), false),
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr(func_name, ""),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_func, args);
+		}
+
+		void insert_unlock(CallInst* cal){
+			IRBuilder<> builder(cal);
+
+			Value * var = cal->getArgOperand(0);
+			Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
+			Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
+			Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, cal->getDebugLoc().getLine(), false), 
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr("unlock", ""),
+				builder.CreateBitCast(lock, ptrTy),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_mutex, args);
+		}
+		/** ----------------------------invoke------------------------------------- **/
+
+		void insert_spawning(InvokeInst* inv){
+			IRBuilder<> builder(inv);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false),
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_spawning, args);
+		}
+
+		void insert_spawned(InvokeInst* inv){
+			IRBuilder<> builder(inv);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, -1, false),
+				ConstantInt::get(intTy, func_num++, false),
+			};
+			builder.CreateCall(p_probe_spawned, args);
+		}
+
+		void insert_lock(InvokeInst* inv){
+			IRBuilder<> builder(inv);
+
+			Value * var = inv->getArgOperand(1);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false), // line number
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr("lock", ""),
+				builder.CreateBitCast(var, ptrTy),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_mutex, args);
+		}
+
+		void insert_unlock(InvokeInst* inv){
+			IRBuilder<> builder(inv);
+
+			Value * var = inv->getArgOperand(0);
+			Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
+			Value * lockPtr = builder.CreateStructGEP(MutexGuard->getType(), var, 0);
+			Value * lock = builder.CreateLoad(lockPtr->getType()->getPointerElementType(), lockPtr);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false), // line number
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr("unlock", ""),
+				builder.CreateBitCast(lock, ptrTy),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_mutex, args);
+		}
+		
+		void insert_func(InvokeInst* inv, string func_name){
+			IRBuilder<> builder(inv);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false),
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr(func_name, ""),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_func, args);
+		}
+
+
 
 		// Main entry point, takes IR unit to run the pass on (&F) and the
 		// corresponding pass manager (to be queried if need be)
@@ -383,7 +448,7 @@ namespace {
 					}
 				}
 			}
-			string filePath = directory + "/" + file;
+			file_path = directory + "/" + file;
 
 			for(auto& B : F) {
 				for(auto& I : B) {
@@ -405,27 +470,6 @@ namespace {
 									builder.CreateCall(p_probe_spawned, args);
 								}
 							}
-							else 
-							if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9100c921955b30a8E") != std::string::npos){ // fd spawn
-								IRBuilder<> builder(cal);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, -1, false),
-									ConstantInt::get(intTy, func_num++, false),
-								};
-								builder.CreateCall(p_probe_spawned, args);
-								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
-							}
-							else if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$17h953a9ddec09dc92cE") != std::string::npos){ // fd spawn
-								IRBuilder<> builder(cal);
-
-								Value* args[] = {
-									ConstantInt::get(intTy, -1, false),
-									ConstantInt::get(intTy, func_num++, false),
-								};
-								builder.CreateCall(p_probe_spawned, args);
-								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
-							}
 							else if(funcName.find("_ZN15crossbeam_utils6thread19ScopedThreadBuilder5spawn") != std::string::npos){ // crossbeam spawn
 								IRBuilder<> builder(cal);
 
@@ -434,7 +478,6 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 								};
 								builder.CreateCall(p_probe_spawned, args);
-								errs() << "added call main-------------------------------------------------------------------------------------------------------------------------------\n";
 							}
 							else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv") != std::string::npos){//recv
 								IRBuilder<> builder(cal);
@@ -448,7 +491,6 @@ namespace {
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
-								errs() << "added call recv-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
 								IRBuilder<> builder(cal);
@@ -468,7 +510,6 @@ namespace {
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
-								errs() << "added call unlock-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
 								IRBuilder<> builder(cal);
@@ -488,7 +529,6 @@ namespace {
 									builder.CreateGlobalStringPtr(filePath, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
-								errs() << "added call unlock-------------------------------------------------------------------------------------------------------------------------------\n";
 							} 
 						}
 					}

@@ -14,30 +14,31 @@ use std::{
     process,
 };
 
-static mut _PROBE_THRD_SEM:Option<Arc<(Mutex<_ProbeSpawnSema>, Condvar)>> = None;
-static mut _PROBE_SCENARIO:Option<Arc<(Mutex<_ExeOrderController>, Condvar)>> = None;
+// semaphore used to keep track of parent-child thread relationship
+static mut _THREAD__SPAWN_SEM:Option<Arc<(Mutex<_ProbeSpawnSema>, Condvar)>> = None;
+// mutex and scenario to sequentially execute threads
+static mut _REPLAY__SCENARIO:Option<Arc<(Mutex<_ReplayDirector>, Condvar)>> = None;
 extern { fn atexit(callback: fn()) -> c_int; }
 
 thread_local! {
-    static TID:RefCell<String> = RefCell::new(String::from("none"));
-    static CHILD_ID:RefCell<i32> = RefCell::new(1);
-    static SPAWN_SEMA:RefCell<Option<Arc<(Mutex<_ProbeSpawnSema>, Condvar)>>> = RefCell::new(None);
-    static EXE_ORDER:RefCell<Option<Arc<(Mutex<_ExeOrderController>, Condvar)>>> = RefCell::new(None);
+    static _TID:RefCell<String> = RefCell::new(String::from("none"));
+    static _CHILD_ID:RefCell<i32> = RefCell::new(1);
+    static _SPAWN_SEM:RefCell<Option<Arc<(Mutex<_ProbeSpawnSema>, Condvar)>>> = RefCell::new(None);
+    static _SCENARIO:RefCell<Option<Arc<(Mutex<_ReplayDirector>, Condvar)>>> = RefCell::new(None);
 }
 
 pub fn _init_(){
     match OpenOptions::new().read(true).open("scenario") {
         Ok(scenario_fp) => {
-            unsafe { _PROBE_SCENARIO = Some(Arc::new((Mutex::new(_ExeOrderController::new(scenario_fp)), Condvar::new()))) };
+            unsafe { _REPLAY__SCENARIO = Some(Arc::new((Mutex::new(_ReplayDirector::new(scenario_fp)), Condvar::new()))) };
         }
         Err(_) => {
-            println!("MSG FROM TLE : FAIL TO READ SCENARIO, EXITING...");
-
+            println!("MSG FROM TLE : FAIL TO READ _SCENARIO, EXITING...");
             std::process::exit(0);
         }
     }
 
-    unsafe { _PROBE_THRD_SEM = Some(Arc::new((Mutex::new(_ProbeSpawnSema::new(1)), Condvar::new()))); }
+    unsafe { _THREAD__SPAWN_SEM = Some(Arc::new((Mutex::new(_ProbeSpawnSema::new(1)), Condvar::new()))); }
 
     unsafe { atexit(_final_); }
 
@@ -48,23 +49,24 @@ pub fn _init_(){
     }));
 
     _probe_thread_init_();
-    TID.with(|tid| {
+
+    _TID.with(|tid| {
         tid.replace(String::from("1"));
     });
 }
 
 fn _probe_thread_init_(){
-    SPAWN_SEMA.with(|spawn_sema|{
+    _SPAWN_SEM.with(|spawn_sema|{
         unsafe {
-            if let Some(global_thrd_sem) = & _PROBE_THRD_SEM {
+            if let Some(global_thrd_sem) = & _THREAD__SPAWN_SEM {
                 spawn_sema.replace(Some(Arc::clone(&global_thrd_sem)));
             }
         }
     });
 
-    EXE_ORDER.with(|exe_order|{
+    _SCENARIO.with(|exe_order|{
         unsafe {
-            if let Some(global_scenario) = & _PROBE_SCENARIO {
+            if let Some(global_scenario) = & _REPLAY__SCENARIO {
                 exe_order.replace(Some(Arc::clone(&global_scenario)));
             }
         }
@@ -79,7 +81,7 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_a
         let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
         let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
 
-        TID.with(|tid| {
+        _TID.with(|tid| {
             __traffic_light(tid.borrow().as_str(), func_num, func_name_str, Some(lock_var_addr), Some(file_path_str), line);
         });
     }
@@ -90,17 +92,17 @@ pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char, file_path:*
         let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
         let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
 
-        TID.with(|tid| {
+        _TID.with(|tid| {
             __traffic_light(tid.borrow().as_str(), func_num, func_name_str, None, Some(file_path_str), line);
         });
     }
 }
 
 pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
-    SPAWN_SEMA.with(|spawn_sema| {
+    _SPAWN_SEM.with(|spawn_sema| {
         if let Some(sema_unwrapped) = &*spawn_sema.borrow() {
-            TID.with(|tid| {
-                CHILD_ID.with(|child_id|{
+            _TID.with(|tid| {
+                _CHILD_ID.with(|child_id|{
                     let mut child_id = child_id.borrow_mut();
                     let (sema_guard, cvar) = &**sema_unwrapped;
                     let mut sema_guard = sema_guard.lock().unwrap();
@@ -119,7 +121,7 @@ pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
     unsafe {
         let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
 
-        TID.with(|tid| {
+        _TID.with(|tid| {
             __traffic_light(tid.borrow().as_str(), func_num, "spawning", None, Some(file_path_str), line);
         });
     }
@@ -127,12 +129,12 @@ pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
 
 pub fn _probe_spawned_(line:i32, func_num:i32){
     _probe_thread_init_();
-    SPAWN_SEMA.with(|spawn_sema| {
+    _SPAWN_SEM.with(|spawn_sema| {
         if let Some(sema_unwrapped) = &*spawn_sema.borrow() {
             let (sema_guard, cvar) = &**sema_unwrapped;
             let mut sema_guard = sema_guard.lock().unwrap();
 
-            TID.with(|tid|{
+            _TID.with(|tid|{
                 tid.replace(sema_guard.get_tid());
             });
 
@@ -146,7 +148,7 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
     });
 
     unsafe {
-        TID.with(|tid| {
+        _TID.with(|tid| {
             __traffic_light(tid.borrow().as_str(), func_num, "spawned", None, None, -1);
         });
     }
@@ -161,7 +163,7 @@ fn __traffic_light(
     line_num:i32
 ) {
     let my_order = format!("{}-{}", tid, func_num);
-    EXE_ORDER.with(|exe_wrapped|{
+    _SCENARIO.with(|exe_wrapped|{
         if let Some(exe_unwrapped) = &*exe_wrapped.borrow() {
             let (exe_guarded, cvar) = &**exe_unwrapped;
             let mut exe_order = exe_guarded.lock().unwrap();
@@ -215,31 +217,31 @@ impl _ProbeSpawnSema {
 /*
 * the lock should be held before calling any of the methods except for new.
 */
-struct _ExeOrderController {
+struct _ReplayDirector {
     scenario_queue:VecDeque<String>,
-    log_file:File,
+    log_fp:File,
 }
 
-impl _ExeOrderController {
+impl _ReplayDirector {
     fn new(mut scenario_fp:File) -> Self {
         let mut scenario_queue = VecDeque::new();
         let mut scenario_str = String::new();
 
         scenario_fp.read_to_string(&mut scenario_str).expect("fail to read from scenario");
-        let scenario_str_vec:Vec<&str> = scenario_str.split("+").collect();
+        let scenario_vec:Vec<&str> = scenario_str.split("+").collect();
 
-        for curr_order in scenario_str_vec {
-            if curr_order == "\n" { continue; }
-            scenario_queue.push_back(String::from(curr_order));
+        for curr_act in scenario_vec {
+            if curr_act == "\n" { continue; }
+            scenario_queue.push_back(String::from(curr_act));
         }
 
         let mut log_fp = OpenOptions::new().write(true).create(true).open("log").unwrap();
         write!(log_fp, "---------------------From _init_---------------------\n").expect("write failed\n");
         write!(log_fp, "tid: 1        | func_name: main\n").expect("write failed\n"); 
 
-        _ExeOrderController{
+        _ReplayDirector{
             scenario_queue:scenario_queue,
-            log_file:log_fp,
+            log_fp:log_fp,
         }
     }
 
@@ -266,11 +268,11 @@ impl _ExeOrderController {
         };
         match var_addr {
             Some(var_addr) => {
-                write!(self.log_file, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}\n", 
+                write!(self.log_fp, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}\n", 
                             tid, func_num, func_name, var_addr, file_path, line_num).expect("write failed\n");
             },
             None => {
-                write!(self.log_file, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}\n", 
+                write!(self.log_fp, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}\n", 
                             tid, func_num, func_name, "None", file_path, line_num).expect("write failed\n");
             },
         }
