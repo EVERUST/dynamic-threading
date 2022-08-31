@@ -19,7 +19,8 @@ using namespace std;
 
 namespace {
 
-	void initialization(Function &F);
+	void initialize_rse(Function &F);
+	void initialize_tle(Function &F);
 
 	struct RSE_pass : PassInfoMixin<RSE_pass> {
 
@@ -146,7 +147,8 @@ namespace {
 		// corresponding pass manager (to be queried if need be)
 		PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
 			if(!initial) {
-				initialization(F);
+				if(is_rse) initialize_rse(F);
+				else initialize_tle(F);
 				initial = true;
 			}
 
@@ -266,7 +268,7 @@ namespace {
 		// all functions with optnone.
 		static bool isRequired() { return true; }
 
-		void initialization(Function &F) {
+		void initialize_rse(Function &F) {
 			string line;
 			ifstream read_func_num ("func_num_rse");
 			if(read_func_num.is_open()){
@@ -308,7 +310,50 @@ namespace {
 				builder.CreateCall(p_init, ArgsV, "");
 			}
 		}
+		void initialize_tle(Function &F) {
+			string line;
+			ifstream read_func_num ("func_num_tle");
+			if(read_func_num.is_open()){
+				getline(read_func_num, line);
+				func_num = stoi(line);
+			}
+			read_func_num.close();
+
+			intTy = Type::getInt32Ty(F.getContext());
+			ptrTy = Type::getInt8PtrTy(F.getContext());
+			voidTy = Type::getVoidTy(F.getContext());
+			boolTy = Type::getInt1Ty(F.getContext());
+
+			LLVMContext &Ctx = F.getContext();
+
+			FunctionType * fty = FunctionType::get(voidTy, false);
+			p_init = F.getParent()->getOrInsertFunction("_ZN9probe_ERR6_init_17h620290c0f842cc7eE", fty);
+
+			vector<Type*> paramTypes = {intTy, intTy, ptrTy, ptrTy, ptrTy};
+			fty = FunctionType::get(voidTy, paramTypes, false);
+			p_probe_mutex = F.getParent()->getOrInsertFunction("_ZN9probe_ERR13_probe_mutex_17h1d42b4d2bb9896abE", fty);
+
+			paramTypes = {intTy, intTy, ptrTy, ptrTy};		
+			fty = FunctionType::get(voidTy, paramTypes, false);
+			p_probe_func = F.getParent()->getOrInsertFunction("_ZN9probe_ERR12_probe_func_17h370a3cccf4e0c069E", fty);
+			
+			paramTypes = {intTy, intTy, ptrTy};		
+			fty = FunctionType::get(voidTy, paramTypes, false);
+			p_probe_spawning = F.getParent()->getOrInsertFunction("_ZN9probe_ERR16_probe_spawning_17h1f3e426fcd70b69fE", fty);
+			
+			paramTypes = {intTy, intTy};		
+			fty = FunctionType::get(voidTy, paramTypes, false);
+			p_probe_spawned = F.getParent()->getOrInsertFunction("_ZN9probe_ERR15_probe_spawned_17h5319457ca87fec88E", fty);
+
+			Function * mainFunc = F.getParent()->getFunction(StringRef("main"));
+			if(mainFunc != NULL) {
+				IRBuilder<> builder(mainFunc->getEntryBlock().getFirstNonPHI());
+				vector<Value *> ArgsV;
+				builder.CreateCall(p_init, ArgsV, "");
+			}
+		}
 	}; //RSE_pass	
+
 
 	struct TLE_pass : PassInfoMixin<TLE_pass> {
 
@@ -488,7 +533,7 @@ namespace {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("recv", ""),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
@@ -507,7 +552,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("unlock", ""),
 									builder.CreateBitCast(lock, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -526,7 +571,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("unlock", ""),
 									builder.CreateBitCast(lock, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -547,7 +592,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("lock", ""),
 									builder.CreateBitCast(var, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -566,7 +611,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("unlock", ""),
 									builder.CreateBitCast(lock, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -585,7 +630,7 @@ namespace {
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("unlock", ""),
 									builder.CreateBitCast(lock, ptrTy),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_mutex, args);
 							} 
@@ -598,7 +643,7 @@ namespace {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("send", ""),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
@@ -611,7 +656,7 @@ namespace {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
 									builder.CreateGlobalStringPtr("recv", ""),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_func, args);
 							} 
@@ -623,7 +668,7 @@ namespace {
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_spawning, args);
 							} 
@@ -635,7 +680,7 @@ namespace {
 								Value* args[] = {
 									ConstantInt::get(intTy, loc, false),
 									ConstantInt::get(intTy, func_num++, false),
-									builder.CreateGlobalStringPtr(filePath, ""),
+									builder.CreateGlobalStringPtr(file_path, ""),
 								};
 								builder.CreateCall(p_probe_spawning, args);
 							} 
@@ -698,6 +743,7 @@ namespace {
 			}
 		}
 	}; //TLE_pass
+	
 
 } // namespace
 
@@ -708,11 +754,12 @@ llvm::PassPluginLibraryInfo get_custom_pass_PluginInfo() {
 		LLVM_PLUGIN_API_VERSION, "my_pass", LLVM_VERSION_STRING, [](PassBuilder &PB) { 
 			PB.registerPipelineParsingCallback( [](StringRef Name, FunctionPassManager &FPM, ArrayRef<PassBuilder::PipelineElement>) { 
 				if (Name == "RSE_pass") { 
-					FPM.addPass(RSE_pass()); 
+					FPM.addPass(RSE_pass(true)); 
 					return true; 
 				} 
 				else if (Name == "TLE_pass"){
-					FPM.addPass(TLE_pass());
+					//FPM.addPass(TLE_pass());
+					FPM.addPass(RSE_pass(false)); 
 					return true;
 				}
 				return false; 
