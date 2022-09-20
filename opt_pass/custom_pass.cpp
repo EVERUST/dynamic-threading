@@ -170,7 +170,7 @@ namespace {
 			}
 
 			if(is_rse_pass) 
-				function_index_fp.open("function_number.txt", ios_base::app);
+				function_index_fp.open("function_number_ind", ios_base::app);
 
 			SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
 			string file;
