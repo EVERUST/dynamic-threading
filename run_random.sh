@@ -1,7 +1,7 @@
 CNT=0
 RCNT=0
 ARR_IND=0
-myArray=("1" "1.1" "1.2" "1.3" "1.4" "1.5" "1.6" "1.7" "1.8" "1.9" "1.10" "1.11" "1.12" "1.13" "1.14" "1.15" "1.16" "1.17" "none")
+myArray=("1" "1.1" "1.2" "1.3" "1.4" "1.5" "1.6" "1.7" "1.8" "1.9" "1.10" "1.11" "1.12" "1.13" "none")
 
 cd build
 echo testing environment set up - success
@@ -10,7 +10,7 @@ echo -e -n "\r\e[kNOW TESTING   "
 export PRIVILEGED_THREAD=${myArray[$ARR_IND]}
 while :
 do
-	./rse . '../' >& prog_out
+	./rse aaaa ./input_dir >& prog_out
 	exit_status=$?
 
 	if [ $exit_status -eq 0 ];
@@ -35,10 +35,7 @@ do
 			echo -e -n "\r\e[kNOW TESTING.  "
 		fi
 #COMMENT
-
-		#echo -e -n '\r\e[k'$RCNT exit success
 	else
-		#echo -e '\n'$RCNT EXIT FAILURE
 		echo -e '\n\033[0;31mDETECTED FAILURE\033[0m'
 		mv log ../TLE/SC$CNT
 		mv prog_out ../TLE/OUT$CNT

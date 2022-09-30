@@ -230,6 +230,7 @@ fn __record_scenario(tid:&str, func_num:i32){
         if let Some(fp_arc) = &_PROBE_FP {
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "{}-{}+", tid, func_num).expect("write failed\n");
+            // println!("this is {:?} recording {}-{}", thread::current().id(), tid, func_num);
         }
     }
 }
