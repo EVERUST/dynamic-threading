@@ -11,8 +11,8 @@ mkdir out_dir
 mkdir build
 
 cd $TARGET_HOME_DIR
-cargo clean
-cargo +nightly build
+# cargo clean
+# cargo +nightly build
 
 for entry in ./target/debug/deps/*.ll
 do
@@ -36,8 +36,8 @@ rustc --crate-type=lib --emit=obj -o probe_err.o ../probe/probe_ERR.rs
 
 #fd, should not include librustc_driver
 # $LLVM/bin/clang -o ../out_dir/rse $NIGHTLY_LIB/libstd-91db243dd05c003b.so $NIGHTLY_LIB/librustc_driver-01adb97716082640.so ../include/libjemalloc_pic.a -lpthread -pthread -lrt -lm -ldl target_rse_*.ll probe_rse.o 
-$LLVM/bin/clang -o ../out_dir/rse $NIGHTLY_LIB/libstd-91db243dd05c003b.so  -lpthread -pthread -lrt -lm -ldl target_rse_*.ll probe_rse.o ../include/libjemalloc_pic.a
-$LLVM/bin/clang -o ../out_dir/err $NIGHTLY_LIB/libstd-91db243dd05c003b.so  -lpthread -pthread -lrt -lm -ldl target_err_*.ll probe_err.o ../include/libjemalloc_pic.a
+$LLVM/bin/clang -o ../out_dir/${TESTING_TARGET}_rse $NIGHTLY_LIB/libstd-91db243dd05c003b.so  -lpthread -pthread -lrt -lm -ldl target_rse_*.ll probe_rse.o ../include/libjemalloc_pic.a
+$LLVM/bin/clang -o ../out_dir/${TESTING_TARGET}_err $NIGHTLY_LIB/libstd-91db243dd05c003b.so  -lpthread -pthread -lrt -lm -ldl target_err_*.ll probe_err.o ../include/libjemalloc_pic.a
 
 
 #rm *.ll
