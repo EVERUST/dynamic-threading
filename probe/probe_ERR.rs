@@ -33,7 +33,7 @@ pub fn _init_(){
             unsafe { _REPLAY__SCENARIO = Some(Arc::new((Mutex::new(_ReplayDirector::new(scenario_fp)), Condvar::new()))) };
         }
         Err(_) => {
-            println!("MSG FROM TLE : FAIL TO READ _SCENARIO, EXITING...");
+            eprintln!("MSG FROM TLE : FAIL TO READ _SCENARIO, EXITING...");
             std::process::exit(0);
         }
     }
@@ -73,8 +73,7 @@ fn _probe_thread_init_(){
     });
 }
 
-pub fn _final_(){
-}
+pub fn _final_(){ }
 
 pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_addr:*mut u64, file_path:*const c_char){
     unsafe {
@@ -167,13 +166,15 @@ fn __traffic_light(
         if let Some(exe_unwrapped) = &*exe_wrapped.borrow() {
             let (exe_guarded, cvar) = &**exe_unwrapped;
             let mut exe_order = exe_guarded.lock().unwrap();
-            println!("\t++ {:?} {} is in, next is {}", thread::current().id(), my_order, exe_order.get_next_act());
+            eprintln!("\t++ {:?} {} is in, next is {}", thread::current().id(), my_order, exe_order.get_next_act());
             while !my_order.eq(&exe_order.get_next_act()) {
-                println!("\t++ {:?} {} sleeps", thread::current().id(), my_order);
-                exe_order = cvar.wait(exe_order).unwrap();
-                println!("\t++ {:?} {} is awake, next is {}", thread::current().id(), my_order, exe_order.get_next_act());
+                eprintln!("\t++ {:?} {} sleeps", thread::current().id(), my_order);
+				/* chkp */
+				thread::sleep(Duration::from_millis(1000)); 
+                // exe_order = cvar.wait(exe_order).unwrap();
+                eprintln!("\t++ {:?} {} is awake, next is {}", thread::current().id(), my_order, exe_order.get_next_act());
             }
-            println!("\t++ {:?} {} passed", thread::current().id(), my_order);
+            eprintln!("\t++ {:?} {} passed", thread::current().id(), my_order);
             exe_order.write_log(tid, func_num, func_name, var_addr, file_path, line_num);
             exe_order.update_next_act();
             cvar.notify_all();
