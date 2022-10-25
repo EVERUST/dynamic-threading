@@ -37,10 +37,10 @@ namespace {
 		}
 
 		/** ---------------------------- call ---------------------------- **/
-		void insert_func(CallInst* cal, string func_name){
+		void insert_func(CallInst* cal, string func_name, string symbol){
 			IRBuilder<> builder(cal);
 			if(is_rse_pass) 
-				function_index_fp << file_path << "\t" << cal->getDebugLoc().getLine() << "\t" << func_name << " " << func_num << endl;
+				function_index_fp << func_num << " " << symbol << " " << func_name << "\t" << file_path << "\t" << cal->getDebugLoc().getLine() << endl;
 
 			Value* args[] = {
 				ConstantInt::get(intTy, cal->getDebugLoc().getLine(), false),
@@ -51,10 +51,10 @@ namespace {
 			builder.CreateCall(p_probe_func, args);
 		}
 
-		void insert_spawned(CallInst* cal){
+		void insert_spawned(CallInst* cal, string symbol){
 			IRBuilder<> builder(cal);
 			if(is_rse_pass) 
-				function_index_fp << file_path << "\t" << cal->getDebugLoc().getLine() << "\tspawned " << func_num << endl;
+				function_index_fp <<  func_num << " " << symbol << " spawned\t" <<file_path << "\t" << cal->getDebugLoc().getLine() << endl;
 
 			Value* args[] = {
 				ConstantInt::get(intTy, -1, false),
@@ -63,10 +63,27 @@ namespace {
 			builder.CreateCall(p_probe_spawned, args);
 		}
 
-		void insert_unlock(CallInst* cal){
+		void insert_lock(CallInst* cal, string symbol){
 			IRBuilder<> builder(cal);
 			if(is_rse_pass) 
-				function_index_fp << file_path << "\t" << cal->getDebugLoc().getLine() << "\tunlock " << func_num << endl;
+				function_index_fp << func_num << " " << symbol << " lock__\t" << file_path << "\t" << cal->getDebugLoc().getLine() << endl;
+
+			Value * var = cal->getArgOperand(1);
+
+			Value* args[] = {
+				ConstantInt::get(intTy, cal->getDebugLoc().getLine(), false), // line number
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr("lock", ""),
+				builder.CreateBitCast(var, ptrTy),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_mutex, args);
+		}
+
+		void insert_unlock(CallInst* cal, string symbol){
+			IRBuilder<> builder(cal);
+			if(is_rse_pass) 
+				function_index_fp << func_num << " " << symbol << " unlock\t" << file_path << "\t" << cal->getDebugLoc().getLine() << endl;
 
 			Value * var = cal->getArgOperand(0);
 			Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
@@ -84,10 +101,10 @@ namespace {
 		}
 
 		/** ---------------------------- invoke ---------------------------- **/
-		void insert_func(InvokeInst* inv, string func_name){
+		void insert_func(InvokeInst* inv, string func_name, string symbol){
 			IRBuilder<> builder(inv);
 			if(is_rse_pass) 
-				function_index_fp << file_path << "\t" << inv->getDebugLoc().getLine() << "\t" << func_name << " " << func_num << endl;
+				function_index_fp << func_num << " " << symbol << " " << func_name << "\t" << file_path << "\t" << inv->getDebugLoc().getLine() << endl;
 
 			Value* args[] = {
 				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false),
@@ -98,10 +115,10 @@ namespace {
 			builder.CreateCall(p_probe_func, args);
 		}
 
-		void insert_spawning(InvokeInst* inv){
+		void insert_spawning(InvokeInst* inv, string symbol){
 			IRBuilder<> builder(inv);
 			if(is_rse_pass) 
-				function_index_fp << file_path << "\t" << inv->getDebugLoc().getLine() << "\tspawning " << func_num << endl;
+				function_index_fp << func_num << " " << symbol << " spawning\t" << file_path << "\t" << inv->getDebugLoc().getLine() << endl;
 
 			Value* args[] = {
 				ConstantInt::get(intTy, inv->getDebugLoc().getLine(), false),
@@ -111,10 +128,10 @@ namespace {
 			builder.CreateCall(p_probe_spawning, args);
 		}
 
-		void insert_spawned(InvokeInst* inv){
+		void insert_spawned(InvokeInst* inv, string symbol){
 			IRBuilder<> builder(inv);
 			if(is_rse_pass) 
-				function_index_fp << file_path << "\t" << inv->getDebugLoc().getLine() << "\tspawned " << func_num << endl;
+				function_index_fp << func_num << " " << symbol << " spawned\t" << file_path << "\t" << inv->getDebugLoc().getLine() << endl;
 
 			Value* args[] = {
 				ConstantInt::get(intTy, -1, false),
@@ -123,10 +140,10 @@ namespace {
 			builder.CreateCall(p_probe_spawned, args);
 		}
 
-		void insert_lock(InvokeInst* inv){
+		void insert_lock(InvokeInst* inv, string symbol){
 			IRBuilder<> builder(inv);
 			if(is_rse_pass) 
-				function_index_fp << file_path << "\t" << inv->getDebugLoc().getLine() << "\tlock " << func_num << endl;
+				function_index_fp << func_num << " " << symbol << " lock__\t" << file_path << "\t" << inv->getDebugLoc().getLine() << endl;
 
 			Value * var = inv->getArgOperand(1);
 
@@ -138,12 +155,21 @@ namespace {
 				builder.CreateGlobalStringPtr(file_path, ""),
 			};
 			builder.CreateCall(p_probe_mutex, args);
+			/* chkp */
+			builder.SetInsertPoint(inv->getNextNonDebugInstruction());
+			Value* args2[] = {
+				ConstantInt::get(intTy, -1, false), // line number
+				ConstantInt::get(intTy, func_num++, false),
+				builder.CreateGlobalStringPtr("got_lock", ""),
+				builder.CreateGlobalStringPtr(file_path, ""),
+			};
+			builder.CreateCall(p_probe_func, args2);
 		}
 
-		void insert_unlock(InvokeInst* inv){
+		void insert_unlock(InvokeInst* inv, string symbol){
 			IRBuilder<> builder(inv);
 			if(is_rse_pass) 
-				function_index_fp << file_path << "\t" << inv->getDebugLoc().getLine() << "\tunlock " << func_num << endl;
+				function_index_fp << func_num << " " << symbol << " unlock\t" << file_path << "\t" << inv->getDebugLoc().getLine() << endl;
 
 			Value * var = inv->getArgOperand(0);
 			Value * MutexGuard = builder.CreateLoad(var->getType()->getPointerElementType(), var);
@@ -170,7 +196,7 @@ namespace {
 			}
 
 			if(is_rse_pass) 
-				function_index_fp.open("function_number.txt", ios_base::app);
+				function_index_fp.open("function_number_ind", ios_base::app);
 
 			SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
 			string file;
@@ -196,38 +222,34 @@ namespace {
 							if(funcName.find("drop_in_place") == std::string::npos
 										&& funcName.find("closure") != std::string::npos 
 										&& funcName.find("main") != std::string::npos){ //main.*closure no dip
-								insert_spawned(cal);
-								errs() << func_num << "a - added call main-----------------------------------------------\n";
+								insert_spawned(cal, "call-1");
+								errs() << func_num << "call-1 - added call main-----------------------------------------------\n";
 							}
-							else if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9100c921955b30a8E") != std::string::npos){ // fd spawn
-								insert_spawned(cal);
-								errs() << func_num << "b - added call main-----------------------------------------------\n";
+							else if(funcName.find("spawn_receiver") != std::string::npos
+										&& funcName.find("closure") != std::string::npos
+										&& funcName.find("drop_in_place") == std::string::npos){
+								insert_spawned(cal, "call-2");
+								errs() << func_num << "call-2 - added call main-----------------------------------------------\n";
 							}
-							else if(funcName.find("_ZN2fd4walk14spawn_receiver28_$u7b$$u7b$closure$u7d$$u7d$17h953a9ddec09dc92cE") != std::string::npos){ // fd spawn
-								insert_spawned(cal);
-								errs() << func_num << "c - added call main-----------------------------------------------\n";
-							}
-							/*
-							else if(funcName.find("_ZN6ignore4walk12WalkParallel5visit28_$u7b$$u7b$closure") != std::string::npos){ // ignore visit spawned
-								insert_spawned(cal);
-								errs() << "added call main-----------------------------------------------\n";
-							}
-							*/
 							else if(funcName.find("_ZN15crossbeam_utils6thread19ScopedThreadBuilder5spawn") != std::string::npos){ // crossbeam spawn
-							 	insert_spawned(cal);
-								errs() << func_num << "d - added call main-----------------------------------------------\n";
+							 	insert_spawned(cal, "call-3");
+								errs() << func_num << "call-3 - added call main-----------------------------------------------\n";
 							}
 							else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv") != std::string::npos){//recv
-								insert_func(cal, "recv");
-								errs() << func_num << "e - added call recv-----------------------------------------------\n";
+								insert_func(cal, "recv__", "call-4");
+								errs() << func_num << "call-4 - added call recv-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
-								insert_unlock(cal);
-								errs() << func_num << "f - added call unlock-----------------------------------------------\n";
+								insert_unlock(cal, "call-5");
+								errs() << func_num << "call-5 - added call unlock-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
-								insert_unlock(cal);
-								errs() << func_num << "g - added call unlock-----------------------------------------------\n";
+								insert_unlock(cal, "call-6");
+								errs() << func_num << "call-6 - added call unlock-----------------------------------------------\n";
+							} 
+							else if(funcName.find("_ZN3std4sync5mutex14Mutex$LT$T$GT$4lock") != std::string::npos) { // lock
+								insert_lock(cal, "call-7");
+								errs() << func_num << "call-7 - added call lock-----------------------------------------------\n";
 							} 
 						}
 					}
@@ -236,32 +258,32 @@ namespace {
 						if(inv->getDebugLoc().get() != NULL && inv->getCalledFunction() != NULL) {
 							string funcName = inv->getCalledFunction()->getName().str();
 							if(funcName.find("_ZN3std4sync5mutex14Mutex$LT$T$GT$4lock") != std::string::npos) { // lock
-								insert_lock(inv);
-								errs() << func_num << "h - added invo lock-----------------------------------------------\n";
+								insert_lock(inv, "invo-1");
+								errs() << func_num << "invo-1 - added invo lock-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr65drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
-								insert_unlock(inv);
-								errs() << func_num << "i - added invo unlock-----------------------------------------------\n";
+								insert_unlock(inv, "invo-2");
+								errs() << func_num << "invo-2 - added invo unlock-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN4core3ptr115drop_in_place$LT$std..sync..mutex..MutexGuard") != std::string::npos) { // unlock
-								insert_unlock(inv);
-								errs() << func_num << "j - added invo unlock-----------------------------------------------\n";
+								insert_unlock(inv, "invo-3");
+								errs() << func_num << "invo-3 - added invo unlock-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std4sync4mpsc15Sender$LT$T$GT$4send") != std::string::npos){ //send
-								insert_func(inv, "send");
-								errs() << func_num << "k - added invo send-----------------------------------------------\n";
+								insert_func(inv, "send__", "invo-4");
+								errs() << func_num << "invo-4 - added invo send-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std4sync4mpsc17Receiver$LT$T$GT$4recv") != std::string::npos){//recv
-								insert_func(inv, "recv");
-								errs() << func_num << "l - added invo recv-----------------------------------------------\n";
+								insert_func(inv, "recv__", "invo-5");
+								errs() << func_num << "invo-5 - added invo recv-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std6thread5spawn") != std::string::npos){ //spawning
-								insert_spawning(inv);
-								errs() << func_num << "m - added invo spawn-----------------------------------------------\n";
+								insert_spawning(inv, "invo-6");
+								errs() << func_num << "invo-6 - added invo spawn-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN15crossbeam_utils6thread5Scope5spawn") != std::string::npos){ // crossbeam spawning
-								insert_spawning(inv);
-								errs() << func_num << "n - added invo spawn-----------------------------------------------\n";
+								insert_spawning(inv, "invo-7");
+								errs() << func_num << "invo-7 - added invo spawn-----------------------------------------------\n";
 							} 
 							/*
 							else if(funcName.find("_ZN6ignore4walk12WalkParallel5visit28_$u7b$$u7b$closure") != std::string::npos){ // ignore visit spawned
@@ -269,7 +291,7 @@ namespace {
 								errs() << "added call main-----------------------------------------------\n";
 							} 
 							else if(funcName.find("_ZN3std6thread6Thread3new") != std::string::npos){ //spawned
-								insert_spawned(inv);
+								insert_spawned(inv, "o");
 								errs() << func_num << "o - added call main-----------------------------------------------\n";
 							} 
 							*/

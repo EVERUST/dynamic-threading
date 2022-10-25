@@ -73,8 +73,7 @@ fn _probe_thread_init_(){
     });
 }
 
-pub fn _final_(){
-}
+pub fn _final_(){ }
 
 pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, lock_var_addr:*mut u64, file_path:*const c_char){
     unsafe {
