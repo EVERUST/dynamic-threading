@@ -1,8 +1,9 @@
-export LLVM=/usr/lib/llvm-13
-export TARGET_HOME_DIR=/home/uja/capstone/test_target/ripgrep
-export TESTING_DIR=$PWD
+TESTING_TARGET=ripgrep
+LLVM=/usr/lib/llvm-13
+TARGET_HOME_DIR=/home/uja/capstone/test_target/$TESTING_TARGET
+TESTING_HOME_DIR=$PWD
+NIGHTLY_LIB=/home/uja/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib
 export RUSTFLAGS=--emit=llvm-ir
-export NIGHTLY_LIB=/home/uja/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib
 
 rm -rf out_dir
 rm -rf build
@@ -15,10 +16,10 @@ cargo +nightly build
 
 for entry in ./target/debug/deps/*.ll
 do
-	cp $entry $TESTING_DIR/build/
+	cp $entry $TESTING_HOME_DIR/build/
 done
 
-cd $TESTING_DIR/build
+cd $TESTING_HOME_DIR/build
 
 cmake -DLT_LLVM_INSTALL_DIR=$LLVM ../opt_pass
 make
@@ -33,16 +34,10 @@ done
 rustc --crate-type=lib --emit=obj -o probe_rse.o ../probe/probe_RSE.rs
 rustc --crate-type=lib --emit=obj -o probe_err.o ../probe/probe_ERR.rs
 
-$LLVM/bin/clang -o ../out_dir/rse $NIGHTLY_LIB/libstd-91db243dd05c003b.so $NIGHTLY_LIB/librustc_driver-01adb97716082640.so -lpthread -pthread -lrt -lm target_rse_*.ll probe_rse.o 
-$LLVM/bin/clang -o ../out_dir/err $NIGHTLY_LIB/libstd-91db243dd05c003b.so $NIGHTLY_LIB/librustc_driver-01adb97716082640.so -lpthread -pthread -lrt -lm target_err_*.ll probe_err.o 
-
+$LLVM/bin/clang -o ../out_dir/${TESTING_TARGET}_rse $NIGHTLY_LIB/libstd-91db243dd05c003b.so $NIGHTLY_LIB/librustc_driver-01adb97716082640.so -lpthread -pthread -lrt -lm target_rse_*.ll probe_rse.o 
+$LLVM/bin/clang -o ../out_dir/${TESTING_TARGET}_err $NIGHTLY_LIB/libstd-91db243dd05c003b.so $NIGHTLY_LIB/librustc_driver-01adb97716082640.so -lpthread -pthread -lrt -lm target_err_*.ll probe_err.o 
 
 #rm *.ll
-unset LLVM
-unset TARGET_HOME_DIR
-unset TESTING_DIR
-unset RUSTFLAGS
-unset NIGHTLY_LIB
-
 cd ..
 #./run_random.sh
+unset RUSTFLAGS
