@@ -1,21 +1,20 @@
-CNT=0
+export RUST_BACKTRACE=full
 RCNT=0
 ARR_IND=0
-myArray=("1" "1.1" "1.2" "1.3" "1.4" "1.5" "1.6" "1.7" "1.8" "1.9" "1.10" "1.11" "1.12" "1.13" "none")
+myArray=("1" "1.1" "1.2" "1.3" "1.4" "1.5" "1.6" "1.7" "1.8" "1.9" "1.10" "1.11" "1.12" "1.13" "1.14" "1.15" "1.16" "1.17" "none")
 
-cd build
-echo testing environment set up - success
 
 echo -e -n "\r\e[kNOW TESTING   "
 export PRIVILEGED_THREAD=${myArray[$ARR_IND]}
 while :
 do
-	./rse aaaa ./input_dir >& prog_out
+	./fd_rse . '../input_dir' >& prog_out # bug case 1 ~ 4
+	#./rse_fd -H -I -e ll fd '../input_dir' >& prog_out # bug case 5
 	exit_status=$?
 
 	if [ $exit_status -eq 0 ];
 	then
-#<<COMMENT
+		rm static_sleep_record
 		if [ $(($RCNT%300)) -eq 0 ];
 		then
 			echo -e -n "\r\e[kNOW TESTING..."
@@ -34,27 +33,12 @@ do
 		then
 			echo -e -n "\r\e[kNOW TESTING.  "
 		fi
-#COMMENT
 	else
 		echo -e '\n\033[0;31mDETECTED FAILURE\033[0m'
-		mv log ../TLE/SC$CNT
-		mv prog_out ../TLE/OUT$CNT
-		CNT=$((CNT+1))
+		mv log scenario$RCNT
+		mv prog_out prog_out$RCNT
+		mv struct struct$RCNT
 		break
 	fi
 	RCNT=$((RCNT+1))
-	rm log
-	rm struct
 done
-
-cp struct ../TLE/prog_struct
-cd ../TLE
-cp SC0 scenario
-echo -e '\033[0;36m'TARGET PROGRAM OUTPUT:'\033[0m'
-./tle
-echo -e '\033[0;36m'TARGET PROGRAM EXECUTION ORDER:'\033[0m'
-cat log
-echo -e '\033[0;36m'TARGET PROGRAM STRUCTURE:'\033[0m'
-cat prog_struct
-cd ..
-
