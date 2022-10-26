@@ -15,6 +15,8 @@ use std::{
 };
 
 // file stream to log
+static mut _PROBE_FP_ONLY_SLEEP:Option<Arc<Mutex<File>>> = None;
+// file stream to log
 static mut _PROBE_FP:Option<Arc<Mutex<File>>> = None;
 // semaphore for allowing only one spawning thread at a time
 static mut _PROBE_THRD_SEM:Option<Arc<_ProbeSemaphore>> = None;
@@ -48,6 +50,11 @@ pub fn _init_(){
             _PRIVILEGED_THREAD = Some(val);
         }
         _PROBE_THRD_SEM = Some(Arc::new(_ProbeSemaphore::new(1))); // allow only 1 thread
+        _PROBE_FP_ONLY_SLEEP = Some(Arc::new(Mutex::new(OpenOptions::new()
+                                            .write(true)
+                                            .create(true)
+                                            .open("static_sleep_record")
+                                            .unwrap())));
         _PROBE_FP = Some(Arc::new(Mutex::new(OpenOptions::new()
                                             .write(true)
                                             .create(true)
@@ -95,12 +102,12 @@ pub fn _final_(){
 }
 
 pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, _lock_var_addr:*mut u64, file_path:*const c_char){
-    __random_sleep();
+    let sleep_duration = __random_sleep();
     
     unsafe{
         let func_name_str = CStr::from_ptr(func_name).to_str().unwrap();
         TID.with(|tid| {
-            __record_scenario(tid.borrow().as_str(), func_num);
+            __record_scenario(tid.borrow().as_str(), func_num, sleep_duration);
             EXE_NODE_ID.with(|exe_node_id|{
                 let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
                 __record_thread_structure(*exe_node_id.borrow(), (*tid.borrow()).clone(), func_num, line, func_name_str, Some(_lock_var_addr), Some(file_path_str));
@@ -110,16 +117,13 @@ pub fn _probe_mutex_(line:i32, func_num:i32, func_name:*const c_char, _lock_var_
 }
 
 pub fn _probe_func_(line:i32, func_num:i32, func_name:*const c_char, file_path:*const c_char){
-    let func_name_str = unsafe {
-        CStr::from_ptr(func_name).to_str().unwrap()
-    };
-    if func_name_str != "join" {
-        __random_sleep();
-    }
+	let sleep_duration = __random_sleep();
+
+    let func_name_str = unsafe { CStr::from_ptr(func_name).to_str().unwrap() };
 
     unsafe{
         TID.with(|tid| {
-            __record_scenario(tid.borrow().as_str(), func_num);
+            __record_scenario(tid.borrow().as_str(), func_num, sleep_duration);
             EXE_NODE_ID.with(|exe_node_id|{
                 let file_path_str = CStr::from_ptr(file_path).to_str().unwrap();
                 __record_thread_structure(*exe_node_id.borrow(), tid.borrow().to_string(), func_num, line, func_name_str, None, Some(file_path_str));
@@ -137,7 +141,7 @@ pub fn _probe_spawning_(line:i32, func_num:i32, file_path:*const c_char){
             sema.dec();
         }
         TID.with(|tid| {
-            __record_scenario(tid.borrow().as_str(), func_num);
+            __record_scenario(tid.borrow().as_str(), func_num, 0);
             CHILD_ID.with(|child_id| {
                 let mut child_id = child_id.borrow_mut();
                 _PROBE_NEW_THREAD_ID = Some(format!("{}.{}", &tid.borrow(), child_id));
@@ -162,11 +166,11 @@ pub fn _probe_spawned_(line:i32, func_num:i32){
             sema.inc();
         }
     }
-    __random_sleep();
+    let sleep_duration = __random_sleep();
 
     unsafe{
         TID.with(|tid| {
-            __record_scenario(tid.borrow().as_str(), func_num);
+            __record_scenario(tid.borrow().as_str(), func_num, sleep_duration);
 
             EXE_NODE_ID.with(|exe_node_id| {
                 // push new vec for newly spawned thread
@@ -225,37 +229,40 @@ fn __record_thread_structure(
     }
 }
 
-fn __record_scenario(tid:&str, func_num:i32){
+fn __record_scenario(tid:&str, func_num:i32, sleep_duration:u64){
     unsafe{
         if let Some(fp_arc) = &_PROBE_FP {
             let mut file_stream = fp_arc.lock().unwrap();
             write!(file_stream, "{}-{}+", tid, func_num).expect("write failed\n");
-            // println!("this is {:?} recording {}-{}", thread::current().id(), tid, func_num);
+        }
+        if let Some(fp_arc) = &_PROBE_FP_ONLY_SLEEP {
+            let mut file_stream = fp_arc.lock().unwrap();
+            write!(file_stream, "{}-{}+", func_num, sleep_duration).expect("write failed\n");
         }
     }
 }
 
-fn __random_sleep(){
+fn __random_sleep() -> u64 {
     unsafe{
+		let mut seed: i64 = 0;
+		srand(time(&mut seed).try_into().unwrap());
+		let r:u64 = rand().try_into().unwrap();
+
         match &_PRIVILEGED_THREAD {
             None => {
-                let mut seed: i64 = 0;
-                srand(time(&mut seed).try_into().unwrap());
-                let r:u64 = rand().try_into().unwrap();
                 thread::sleep(time::Duration::from_millis((r % _SLEEP_SWITCH) * _MAX_SLEEP));
                 //thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
+				(r % _SLEEP_SWITCH) * _MAX_SLEEP
             }
             Some(thread_id) => {
                 TID.with(|tid| {
-                    if tid.borrow().as_str() == thread_id.as_str() { }
+                    if tid.borrow().as_str() == thread_id.as_str() { 0 }
                     else {
-                        let mut seed: i64 = 0;
-                        srand(time(&mut seed).try_into().unwrap());
-                        let r:u64 = rand().try_into().unwrap();
-                        //thread::sleep(time::Duration::from_millis((r % _SLEEP_SWITCH) * _MAX_SLEEP));
                         thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
+                        //thread::sleep(time::Duration::from_millis((r % _SLEEP_SWITCH) * _MAX_SLEEP));
+						r % _MAX_SLEEP
                     }
-                });
+                })
             }
         }
     }        

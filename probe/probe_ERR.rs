@@ -17,20 +17,20 @@ use std::{
 // semaphore used to keep track of parent-child thread relationship
 static mut _THREAD__SPAWN_SEM:Option<Arc<(Mutex<_ProbeSpawnSema>, Condvar)>> = None;
 // mutex and scenario to sequentially execute threads
-static mut _REPLAY__SCENARIO:Option<Arc<(Mutex<_ReplayDirector>, Condvar)>> = None;
+static mut _REPLAY_SLEEP_SCENARIO:Option<Arc<_ReplayDirector>> = None;
 extern { fn atexit(callback: fn()) -> c_int; }
 
 thread_local! {
     static _TID:RefCell<String> = RefCell::new(String::from("none"));
     static _CHILD_ID:RefCell<i32> = RefCell::new(1);
     static _SPAWN_SEM:RefCell<Option<Arc<(Mutex<_ProbeSpawnSema>, Condvar)>>> = RefCell::new(None);
-    static _SCENARIO:RefCell<Option<Arc<(Mutex<_ReplayDirector>, Condvar)>>> = RefCell::new(None);
+    static _SCENARIO:RefCell<Option<Arc<_ReplayDirector>>> = RefCell::new(None);
 }
 
 pub fn _init_(){
-    match OpenOptions::new().read(true).open("scenario") {
+    match OpenOptions::new().read(true).open("sleep_record") {
         Ok(scenario_fp) => {
-            unsafe { _REPLAY__SCENARIO = Some(Arc::new((Mutex::new(_ReplayDirector::new(scenario_fp)), Condvar::new()))) };
+            unsafe { _REPLAY_SLEEP_SCENARIO = Some(Arc::new(_ReplayDirector::new(scenario_fp))) };
         }
         Err(_) => {
             eprintln!("MSG FROM TLE : FAIL TO READ _SCENARIO, EXITING...");
@@ -66,7 +66,7 @@ fn _probe_thread_init_(){
 
     _SCENARIO.with(|exe_order|{
         unsafe {
-            if let Some(global_scenario) = & _REPLAY__SCENARIO {
+            if let Some(global_scenario) = & _REPLAY_SLEEP_SCENARIO {
                 exe_order.replace(Some(Arc::clone(&global_scenario)));
             }
         }
@@ -164,26 +164,10 @@ fn __traffic_light(
     let my_order = format!("{}-{}", tid, func_num);
     _SCENARIO.with(|exe_wrapped|{
         if let Some(exe_unwrapped) = &*exe_wrapped.borrow() {
-            let (exe_guarded, cvar) = &**exe_unwrapped;
-            let mut exe_order = exe_guarded.lock().unwrap();
-            eprintln!("\t++ {:?} {} is in, next is {}", thread::current().id(), my_order, exe_order.get_next_act());
-            while !my_order.eq(&exe_order.get_next_act()) {
-                eprintln!("\t++ {:?} {} sleeps", thread::current().id(), my_order);
-				/* chkp */
-				thread::sleep(Duration::from_millis(1000)); 
-                // exe_order = cvar.wait(exe_order).unwrap();
-                eprintln!("\t++ {:?} {} is awake, next is {}", thread::current().id(), my_order, exe_order.get_next_act());
-            }
-            eprintln!("\t++ {:?} {} passed", thread::current().id(), my_order);
-            exe_order.write_log(tid, func_num, func_name, var_addr, file_path, line_num);
-            exe_order.update_next_act();
-            cvar.notify_all();
-            drop(exe_order);
+			exe_unwrapped.sleep_for_designated_duration(func_num);
+			exe_unwrapped.write_log(tid, func_num, func_name, var_addr, file_path, line_num);
         }
     });
-    if my_order.eq("1.1-19") {
-        thread::sleep(Duration::from_millis(1000));
-    }
 }
 
 
@@ -219,21 +203,27 @@ impl _ProbeSpawnSema {
 * the lock should be held before calling any of the methods except for new.
 */
 struct _ReplayDirector {
-    scenario_queue:VecDeque<String>,
-    log_fp:File,
+    scenario_queue:Mutex<Vec<VecDeque<String>>>,
+    log_fp:Mutex<File>,
 }
 
 impl _ReplayDirector {
     fn new(mut scenario_fp:File) -> Self {
-        let mut scenario_queue = VecDeque::new();
+        let mut scenario_queue = Vec::<VecDeque<String>>::new();
+		for i in 0..500 {
+			scenario_queue.push(VecDeque::<String>::new());
+		}
         let mut scenario_str = String::new();
 
         scenario_fp.read_to_string(&mut scenario_str).expect("fail to read from scenario");
         let scenario_vec:Vec<&str> = scenario_str.split("+").collect();
 
         for curr_act in scenario_vec {
-            if curr_act == "\n" { continue; }
-            scenario_queue.push_back(String::from(curr_act));
+			// eprintln!("++{}++", curr_act);
+            if curr_act == "\n" || curr_act.trim().is_empty() { break; }
+			let func_and_duration:Vec<&str> =  curr_act.split("-").collect();
+			// eprintln!(" {:?} - {:?} ", func_and_duration[0], func_and_duration[1]);
+			scenario_queue[func_and_duration[0].parse::<usize>().unwrap()].push_back(String::from(func_and_duration[1]));
         }
 
         let mut log_fp = OpenOptions::new().write(true).create(true).open("log").unwrap();
@@ -241,17 +231,32 @@ impl _ReplayDirector {
         write!(log_fp, "tid: 1        | func_name: main\n").expect("write failed\n"); 
 
         _ReplayDirector{
-            scenario_queue:scenario_queue,
-            log_fp:log_fp,
+			scenario_queue:Mutex::new(scenario_queue),
+            log_fp:Mutex::new(log_fp),
         }
     }
 
-    fn get_next_act(&self) -> String { self.scenario_queue.front().unwrap().to_string() }
+	fn sleep_for_designated_duration(&self, func_num:i32){
+		// eprintln!(" - {}", func_num);
+		let mut scenario_queue = self.scenario_queue.lock().unwrap();
+		let sleep_duration = match scenario_queue[func_num as usize].front() {
+			Some(sleep_duration) => {
+				sleep_duration.parse::<u64>().unwrap()
+			},
+			None => 0,
+		};
+		scenario_queue[func_num as usize].pop_front();
+		drop(scenario_queue);
+		//eprintln!("_+_+{}", sleep_duration);
+		thread::sleep(Duration::from_millis(sleep_duration+3));
+	}
 
-    fn update_next_act(&mut self){ self.scenario_queue.pop_front(); }
+    // fn get_next_act(&self) -> String { self.scenario_queue.front().unwrap().to_string() }
 
-    fn write_log(&mut self, tid:&str, func_num:i32, func_name:&str, var_addr:Option<*const u64>, file_path:Option<&str>, line_num:i32){
-        let file_path:String = match file_path {
+    // fn update_next_act(&mut self){ self.scenario_queue.pop_front(); }
+
+	fn write_log(& self, tid:&str, func_num:i32, func_name:&str, var_addr:Option<*const u64>, file_path:Option<&str>, line_num:i32){
+		let file_path:String = match file_path {
             Some(path) => {
                 let mut str_vec:Vec<&str> = path.split("/").collect();
                 let mut i = 0;
@@ -267,13 +272,14 @@ impl _ReplayDirector {
             },
             None => String::from("None"),
         };
+		let mut log_fp = self.log_fp.lock().unwrap();
         match var_addr {
             Some(var_addr) => {
-                write!(self.log_fp, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}\n", 
+                write!(log_fp, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10?} | {} : {}\n", 
                             tid, func_num, func_name, var_addr, file_path, line_num).expect("write failed\n");
             },
             None => {
-                write!(self.log_fp, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}\n", 
+                write!(log_fp, "tid: {:<8} | func_num {:<3} | func_name: {:<8} | lock_var_addr: {:<10} | {} : {}\n", 
                             tid, func_num, func_name, "None", file_path, line_num).expect("write failed\n");
             },
         }

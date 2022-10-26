@@ -156,6 +156,7 @@ namespace {
 			};
 			builder.CreateCall(p_probe_mutex, args);
 			/* chkp */
+			/*
 			builder.SetInsertPoint(inv->getNextNonDebugInstruction());
 			Value* args2[] = {
 				ConstantInt::get(intTy, -1, false), // line number
@@ -164,6 +165,7 @@ namespace {
 				builder.CreateGlobalStringPtr(file_path, ""),
 			};
 			builder.CreateCall(p_probe_func, args2);
+			*/
 		}
 
 		void insert_unlock(InvokeInst* inv, string symbol){

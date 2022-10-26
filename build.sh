@@ -11,8 +11,8 @@ mkdir out_dir
 mkdir build
 
 cd $TARGET_HOME_DIR
-# cargo clean
-# cargo +nightly build
+cargo clean
+cargo +nightly build
 
 for entry in ./target/debug/deps/*.ll
 do
