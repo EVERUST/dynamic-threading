@@ -1,11 +1,15 @@
 export RUST_BACKTRACE=full
 RCNT=0
-ARR_IND=0
-myArray=("1" "1.1" "1.2" "1.3" "1.4" "1.5" "1.6" "1.7" "1.8" "1.9" "1.10" "1.11" "1.12" "1.13" "1.14" "1.15" "1.16" "1.17" "none")
 
 
+export SLEEP_CHANCE=3
+export NOISE_MIN=1
+export NOISE_MAX=4
+
+timestamp=$(date +%T)
+echo $timestamp : testing starts at
+echo execution with $SLEEP_CHANCE chances and noise between $NOISE_MIN , $NOISE_MAX
 echo -e -n "\r\e[kNOW TESTING   "
-export PRIVILEGED_THREAD=${myArray[$ARR_IND]}
 while :
 do
 	./fd_rse . '../input_dir' >& prog_out # bug case 1 ~ 4
@@ -18,14 +22,6 @@ do
 		if [ $(($RCNT%300)) -eq 0 ];
 		then
 			echo -e -n "\r\e[kNOW TESTING..."
-			RCNT=0
-			ARR_IND=$((ARR_IND+1))
-			if [ $ARR_IND -eq 19 ]
-			then
-				ARR_IND=0
-			fi
-			export PRIVILEGED_THREAD=${myArray[$ARR_IND]}
-			echo $PRIVILEGED_THREAD
 		elif [ $(($RCNT%200)) -eq 0 ];
 		then
 			echo -e -n "\r\e[kNOW TESTING.. "
@@ -42,3 +38,6 @@ do
 	fi
 	RCNT=$((RCNT+1))
 done
+timestamp=$(date +%T)
+echo testing ended at : $timestamp 
+echo total $RCNT trials of execution with $SLEEP_CHANCE chances and noise between $NOISE_MIN , $NOISE_MAX

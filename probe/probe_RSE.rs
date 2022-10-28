@@ -27,6 +27,10 @@ static mut _PROBE_THRD_EXE:Option<Arc<Mutex<Vec<Vec<_ProbeNode>>>>> = None;
 // one thread that does not sleep
 static mut _PRIVILEGED_THREAD:Option<String> = None;
 
+static mut _SLEEP_CHANCE:Option<u64> = None;
+static mut _NOISE_MAX:Option<u64> = None;
+static mut _NOISE_MIN:Option<u64> = None;
+
 // max sleep duration, unit: ms
 const _MAX_SLEEP: u64 = 10;
 const _SLEEP_SWITCH: u64 = 2;
@@ -46,9 +50,30 @@ thread_local! {
 
 pub fn _init_(){
     unsafe{
-        if let Ok(val) = env::var("PRIVILEGED_THREAD") {
-            _PRIVILEGED_THREAD = Some(val);
-        }
+        if let Ok(val) = env::var("PRIVILEGED_THREAD") { _PRIVILEGED_THREAD = Some(val); }
+
+        if let Ok(val) = env::var("SLEEP_CHANCE") { 
+			_SLEEP_CHANCE = Some(val.parse::<u64>().unwrap()); 
+			eprintln!("MSG FROM RSE : SLEEP CHANCE IS {}", _SLEEP_CHANCE.unwrap());
+		}
+		else { 
+			eprintln!("MSG FROM RSE : SLEEP CHANCE DOES NOT EXIST"); std::process::exit(0); 
+		}
+        if let Ok(val) = env::var("NOISE_MIN") { 
+			_NOISE_MIN = Some(val.parse::<u64>().unwrap()); 
+			eprintln!("MSG FROM RSE : NOISE MIN IS {}", _NOISE_MIN.unwrap());
+		}
+		else { 
+			eprintln!("MSG FROM RSE : MOISE MIN DOES NOT EXIST"); std::process::exit(0); 
+		}
+        if let Ok(val) = env::var("NOISE_MAX") { 
+			_NOISE_MAX = Some(val.parse::<u64>().unwrap()); 
+			eprintln!("MSG FROM RSE : NOISE MAX IS {}", _NOISE_MAX.unwrap());
+		}
+		else { 
+			eprintln!("MSG FROM RSE : NOISE MAX  DOES NOT EXIST"); std::process::exit(0); 
+		}
+
         _PROBE_THRD_SEM = Some(Arc::new(_ProbeSemaphore::new(1))); // allow only 1 thread
         _PROBE_FP_ONLY_SLEEP = Some(Arc::new(Mutex::new(OpenOptions::new()
                                             .write(true)
@@ -68,6 +93,8 @@ pub fn _init_(){
                 _PROBE_THRD_EXE = Some(Arc::new(Mutex::new(thrd_vec)));
             },
         }
+		let mut seed: i64 = 0;
+		srand(time(&mut seed).try_into().unwrap());
         atexit(_final_);
     }
     EXE_NODE_ID.with(|exe_node_id|{
@@ -244,29 +271,52 @@ fn __record_scenario(tid:&str, func_num:i32, sleep_duration:u64){
 
 fn __random_sleep() -> u64 {
     unsafe{
-		let mut seed: i64 = 0;
-		srand(time(&mut seed).try_into().unwrap());
 		let r:u64 = rand().try_into().unwrap();
 
         match &_PRIVILEGED_THREAD {
             None => {
-                thread::sleep(time::Duration::from_millis((r % _SLEEP_SWITCH) * _MAX_SLEEP));
-                //thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
-				(r % _SLEEP_SWITCH) * _MAX_SLEEP
+				let sleep_duration = __injection_ratio() * __timing_noise_duration();
+                thread::sleep(time::Duration::from_millis(sleep_duration));
+				sleep_duration
             }
             Some(thread_id) => {
                 TID.with(|tid| {
                     if tid.borrow().as_str() == thread_id.as_str() { 0 }
                     else {
                         thread::sleep(time::Duration::from_millis(r % _MAX_SLEEP));
-                        //thread::sleep(time::Duration::from_millis((r % _SLEEP_SWITCH) * _MAX_SLEEP));
 						r % _MAX_SLEEP
                     }
                 })
             }
         }
-    }        
+    }
 }
+
+fn __injection_ratio() -> u64 {
+	unsafe{
+		if let Some(chance) = &_SLEEP_CHANCE{
+				let r:u64 = rand().try_into().unwrap();
+				let ret = r % chance;
+				if ret == 0 { 1 }
+				else { 0 }
+		}
+		else { 0 }
+	}
+}
+
+fn __timing_noise_duration() -> u64 {
+	unsafe{
+		if let Some(max) = &_NOISE_MAX{
+			if let Some(min) = &_NOISE_MIN{
+					let r:u64 = rand().try_into().unwrap();
+					(r % (max - min)) + min
+			}
+			else { 0 }
+		}
+		else { 0 }
+	}
+}
+
 
 struct _ProbeSemaphore {
     mutex: Mutex<i32>,
